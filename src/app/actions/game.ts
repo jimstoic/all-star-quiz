@@ -41,17 +41,10 @@ export async function calculateResults(questionId: string) {
 
             // Prepare Score Update
             if (isCorrect) {
-                // Calculate Server Latency
-                const createdTime = new Date(ans.created_at).getTime();
-                // Latency = Arrival Time - Question Start Time
-                // Note: startTs is BigInt, need conversion
-                const latencyMs = Math.max(0, createdTime - Number(startTs));
-
+                // Trust latency_diff (NTP synced)
                 const timeLimitMs = (question.time_limit || 10) * 1000;
-                // Cap latency at time limit (though server arrival might be slightly later due to network)
-                const effectiveLatency = Math.min(latencyMs, timeLimitMs);
-
-                const speedFactor = 1 - (effectiveLatency / timeLimitMs);
+                const latency = Math.min(ans.latency_diff, timeLimitMs);
+                const speedFactor = 1 - (latency / timeLimitMs);
                 const earned = Math.floor(50 + (50 * speedFactor));
                 updates.push({ user_id: ans.user_id, score_add: earned });
             }
@@ -123,10 +116,10 @@ export async function applyElimination(questionId: string) {
         // User rule: "Eliminate Wrong Answerers + Slowest Correct Answerer"
 
         if (survivors.length > 1) { // Only if more than 1 survivor
-            // Sort by Server Timestamp (created_at). Ascending = Oldest First (Fastest).
-            survivors.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+            // Sort by Synced Latency (Ascending = Fastest First)
+            survivors.sort((a, b) => (a.latency_diff || 0) - (b.latency_diff || 0));
 
-            // The LAST item is the Newest (Latest/Slowest)
+            // The LAST item is the Slowest
             const slowest = survivors[survivors.length - 1];
 
             // Check if slowest is not already victim (shouldn't be)
