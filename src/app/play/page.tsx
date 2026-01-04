@@ -69,15 +69,23 @@ export default function PlayPage() {
                 }
             });
 
-        // Realtime Profile Updates (Kick out)
+        // Realtime Profile Updates (Kick out or Update)
         const channel = supabase.channel('profile_updates')
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${parsed.id}` },
                 (payload) => {
                     const newItem = payload.new as UserProfile;
                     setIsEligible(newItem.is_eligible);
-                    setUser(prev => prev ? { ...prev, ...newItem } : null); // Update Score/Name
+                    setUser(prev => prev ? { ...prev, ...newItem } : null);
                 }
-            ).subscribe();
+            )
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'profiles', filter: `id=eq.${parsed.id}` },
+                () => {
+                    // I have been deleted by Admin (Reset Game) -> Logout
+                    localStorage.removeItem('asq_user');
+                    router.push('/');
+                }
+            )
+            .subscribe();
 
         return () => { supabase.removeChannel(channel); };
     }, [router]);

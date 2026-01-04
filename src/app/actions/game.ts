@@ -150,7 +150,8 @@ export async function applyElimination(questionId: string) {
 }
 
 export async function adminResetGame() {
-    await supabase.from('profiles').update({ score: 0, is_eligible: true }).neq('id', '0000-0000');
+    // Delete all players to start fresh (Active players will be auto-logged out via Realtime)
+    await supabase.from('profiles').delete().neq('id', '0000-0000'); // Delete all
     await supabase.from('game_state').update({ phase: 'IDLE', current_question_id: null }).eq('id', 1);
 }
 
