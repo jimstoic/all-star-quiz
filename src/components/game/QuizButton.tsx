@@ -34,7 +34,11 @@ export function QuizButton({ label, color, selected, disabled, onClick, classNam
             className={cn(
                 "relative w-full h-32 md:h-40 rounded-2xl text-2xl md:text-3xl font-black transition-all flex items-center justify-center p-4 border-b-4",
                 VARIANTS[color],
-                disabled ? DISABLED_STYLES : PRESSED_STYLES,
+                // Logic:
+                // 1. If disabled AND NOT selected: Apply full DISABLED_STYLES (dimmed, no interaction).
+                // 2. If disabled AND selected: Apply SELECTED_DISABLED_STYLES (keep color, no interaction, static pressed look).
+                // 3. If NOT disabled: Apply PRESSED_STYLES (interactive).
+                disabled && !selected ? DISABLED_STYLES : (disabled && selected ? SELECTED_DISABLED_STYLES : PRESSED_STYLES),
                 selected && SELECTED_STYLES,
                 className
             )}
