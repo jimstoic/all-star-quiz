@@ -92,9 +92,17 @@ export default function PlayPage() {
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'game_state' },
                 async (payload) => {
                     const newState = payload.new as GameState;
-                    if (newState.current_question_id && newState.current_question_id !== gameState.current_question_id) {
-                        const { data: q } = await supabase.from('questions').select('*').eq('id', newState.current_question_id).single();
-                        if (q) newState.question = q;
+
+                    // Reset on NEW Question OR if Phase restarts (INTRO)
+                    // This handles re-asking the same question (ID doesn't change, but phase goes IDLE->INTRO)
+                    if (
+                        (newState.current_question_id && newState.current_question_id !== gameState.current_question_id) ||
+                        newState.phase === 'INTRO'
+                    ) {
+                        if (newState.current_question_id) {
+                            const { data: q } = await supabase.from('questions').select('*').eq('id', newState.current_question_id).single();
+                            if (q) newState.question = q;
+                        }
                         setSelectedChoice(null); // Reset selection
                         setIsCorrect(null); // Reset result
                     } else {
