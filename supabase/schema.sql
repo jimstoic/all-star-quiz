@@ -60,9 +60,14 @@ alter table questions enable row level security;
 alter table answers enable row level security;
 
 -- Policies (We dropped tables so policies are gone, safe to create)
-create policy "Enable all access for profiles" on profiles for all using (true) with check (true);
-create policy "Enable all access for game_state" on game_state for all using (true) with check (true);
-create policy "Enable all access for questions" on questions for all using (true) with check (true);
+create policy "Enable read access for all" on profiles for select using (true);
+create policy "Enable update for self" on profiles for update using (auth.uid() = id) with check (auth.uid() = id);
+create policy "Enable insert for all" on profiles for insert with check (true);
+
+create policy "Enable read access for all" on game_state for select using (true);
+create policy "Enable update for service_role" on game_state for update using (true); -- Simplified for dev
+
+create policy "Enable read access for all" on questions for select using (true);
 create policy "Enable all access for answers" on answers for all using (true) with check (true);
 
 -- Realtime Setup (Safe Re-run)

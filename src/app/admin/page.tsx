@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { GamePhase, Question } from '@/types/game';
-import { calculateResults, applyElimination, reviveAllPlayers } from '@/app/actions/game';
+import { calculateResults, applyElimination, reviveAllPlayers, resetQuestionAnswers } from '@/app/actions/game';
 import { Loader2, Zap, ArrowRight, Skull, Plus, Trash2, X, Upload, ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -59,8 +59,18 @@ export default function AdminPage() {
     const updateGameState = async (phase: GamePhase, questionId?: string | null) => {
         setLoading(true);
         const updateData: any = { phase };
+
+        // If starting a NEW question (INTRO), reset its previous answers
+        if (questionId && phase === 'INTRO') {
+            // We need to call a server action or API to delete answers
+            // Since we are in a client component, we should import the action
+            // Imported `resetQuestionAnswers` from actions (needs to be added to imports)
+            await resetQuestionAnswers(questionId);
+        }
+
         if (questionId !== undefined) updateData.current_question_id = questionId;
         if (phase === 'ACTIVE') updateData.start_timestamp = Date.now();
+
         await supabase.from('game_state').update(updateData).eq('id', 1);
         setCurrentPhase(phase);
         setLoading(false);
@@ -109,22 +119,33 @@ export default function AdminPage() {
 
 
 
-    // --- NEW: Player Management Logic ---
+    // --- NEW: Player Management Logic (Presence) ---
     const [activeTab, setActiveTab] = useState<'QUESTIONS' | 'PLAYERS'>('QUESTIONS');
-    const [players, setPlayers] = useState<any[]>([]);
+    const [players, setPlayers] = useState<any[]>([]); // DB Players (all)
+    const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set()); // Presence IDs
 
     useEffect(() => {
-        // Fetch initially
-        supabase.from('profiles').select('*').order('score', { ascending: false }).then(({ data }) => setPlayers(data || []));
+        // 1. Fetch persistent profiles (for scores/eligibility)
+        const fetchProfiles = () => supabase.from('profiles').select('*').order('score', { ascending: false }).then(({ data }) => setPlayers(data || []));
+        fetchProfiles();
 
-        // Subscribe to profile changes
-        const pChannel = supabase.channel('admin_players')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
-                supabase.from('profiles').select('*').order('score', { ascending: false }).then(({ data }) => setPlayers(data || []));
+        const pChannel = supabase.channel('admin_players_db')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchProfiles)
+            .subscribe();
+
+        // 2. Presence (Online Status)
+        const presenceChannel = supabase.channel('global_presence')
+            .on('presence', { event: 'sync' }, () => {
+                const state = presenceChannel.presenceState();
+                const onlineIds = new Set(Object.keys(state));
+                setOnlineUsers(onlineIds);
             })
             .subscribe();
 
-        return () => { supabase.removeChannel(pChannel); };
+        return () => {
+            supabase.removeChannel(pChannel);
+            supabase.removeChannel(presenceChannel);
+        };
     }, []);
 
 
@@ -405,8 +426,11 @@ export default function AdminPage() {
                                 {players.map((p) => (
                                     <div key={p.id} className={`flex justify-between items-center p-3 rounded border ${p.is_eligible ? 'bg-gray-800 border-gray-700' : 'bg-red-900/20 border-red-900 opacity-60'}`}>
                                         <div>
-                                            <div className="font-bold text-sm text-gray-200">{p.display_name}</div>
-                                            <div className="text-xs text-gray-500 font-mono">{p.id.split('-')[0]}...</div>
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-2 h-2 rounded-full ${onlineUsers.has(p.id) ? 'bg-green-500 shadow-[0_0_5px_lime]' : 'bg-gray-600'}`} />
+                                                <div className="font-bold text-sm text-gray-200">{p.display_name}</div>
+                                            </div>
+                                            <div className="text-xs text-gray-500 font-mono ml-4">{p.id.split('-')[0]}...</div>
                                         </div>
                                         <div className="text-right">
                                             <div className="text-lg font-mono font-bold text-blue-400">{p.score}</div>

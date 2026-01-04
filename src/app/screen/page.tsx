@@ -206,7 +206,10 @@ export default function ScreenPage() {
     // Dedicated Effect for Answer Counting (with Realtime)
     useEffect(() => {
         let ansChannel: any;
+        let qChannel: any; // Listener for Question Edits
+
         if (gameState.phase === 'DISTRIBUTION' && gameState.current_question_id) {
+            // ... (Existing Answer Logic)
             const qId = gameState.current_question_id;
             // 1. Fetch Initial
             supabase.from('answers').select('answer_value').eq('question_id', qId)
@@ -226,7 +229,20 @@ export default function ScreenPage() {
                 .subscribe();
         }
 
-        return () => { if (ansChannel) supabase.removeChannel(ansChannel); };
+        // NEW: Always listen for changes to the CURRENT QUESTION (e.g. fixing typos, adding images)
+        if (gameState.current_question_id) {
+            qChannel = supabase.channel(`question_sync_${gameState.current_question_id}`)
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'questions', filter: `id=eq.${gameState.current_question_id}` },
+                    (payload) => {
+                        setGameState(prev => ({ ...prev, question: payload.new as Question }));
+                    })
+                .subscribe();
+        }
+
+        return () => {
+            if (ansChannel) supabase.removeChannel(ansChannel);
+            if (qChannel) supabase.removeChannel(qChannel);
+        };
     }, [gameState.phase, gameState.current_question_id]);
 
     const updateState = async (newState: GameState) => {

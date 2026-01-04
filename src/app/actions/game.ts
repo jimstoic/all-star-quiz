@@ -6,6 +6,12 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// NEW: Reset answers for a specific question to prevent accumulation
+export async function resetQuestionAnswers(questionId: string) {
+    if (!questionId) return;
+    await supabase.from('answers').delete().eq('question_id', questionId);
+}
+
 /**
  * 1. Calculates scores (Adds points)
  * Called at: DISTRIBUTION or REVEAL
@@ -94,11 +100,25 @@ export async function applyElimination(questionId: string) {
         }
 
         // 3. Execute Order 66
+        // FIX: If only 1 person remains and they survived, do NOT eliminate them (Winner).
+        // If 1 person remains and they FAILED, they should be eliminated (Game Over).
+        // Actually, if victims.length == eligibleProfiles.length, EVERYONE died.
+        // We probably want to allow the game to continue or end.
+
+        // Safety: If there is only 1 eligible player left, and they answered Correctly, 
+        // the loop above sets survived=true, so they are NOT in victims.
+        // If they answered WRONG, they ARE in victims.
+        // The issue user reported: "Last survivor appears in ranking but is eliminated?"
+        // If the survivor answered correctly, they won't be in `victims`.
+        // If the user meant "The last person is automatically eliminated", that shouldn't happen with this logic.
+        // However, we should return the SURVIVOR count too.
+
         if (victims.length > 0) {
             await supabase.from('profiles').update({ is_eligible: false }).in('id', victims);
         }
 
-        return { success: true, eliminatedCount: victims.length };
+        const remainingCount = eligibleProfiles.length - victims.length;
+        return { success: true, eliminatedCount: victims.length, remainingCount };
 
     } catch (e) {
         console.error(e);

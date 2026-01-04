@@ -20,7 +20,36 @@ export default function PlayPage() {
     // Eligibility State (Realtime)
     const [isEligible, setIsEligible] = useState(true);
 
-    // Sync User & Eligibility
+    // Sync User
+    useEffect(() => {
+        if (!user) return;
+
+        // Presence Logic
+        const presenceChannel = supabase.channel('global_presence', {
+            config: { presence: { key: user.id } }
+        });
+
+        presenceChannel
+            .on('presence', { event: 'sync' }, () => {
+                // We don't need to do anything here on client, just broadcast
+            })
+            .subscribe(async (status) => {
+                if (status === 'SUBSCRIBED') {
+                    await presenceChannel.track({
+                        id: user.id,
+                        name: user.display_name,
+                        online_at: new Date().toISOString()
+                    });
+                }
+            });
+
+        return () => {
+            presenceChannel.untrack();
+            supabase.removeChannel(presenceChannel);
+        };
+    }, [user]);
+
+    // Game Logic
     useEffect(() => {
         const saved = localStorage.getItem('asq_user');
         if (!saved) { router.push('/'); return; }
