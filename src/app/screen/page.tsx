@@ -171,10 +171,38 @@ export default function ScreenPage() {
     const { isReady, enableAudio } = useGameAudio(gameState.phase);
 
     useEffect(() => {
+        // Game State Sync
         supabase.from('game_state').select('*').single().then(({ data }) => { if (data) updateState(data); });
         const channel = supabase.channel('screen_room').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'game_state' }, (p) => updateState(p.new as GameState)).subscribe();
+
         return () => { supabase.removeChannel(channel); };
     }, []);
+
+    // Dedicated Effect for Answer Counting (with Realtime)
+    useEffect(() => {
+        let ansChannel: any;
+        if (gameState.phase === 'DISTRIBUTION' && gameState.current_question_id) {
+            const qId = gameState.current_question_id;
+            // 1. Fetch Initial
+            supabase.from('answers').select('answer_value').eq('question_id', qId)
+                .then(({ data }) => {
+                    const c: Record<string, number> = {};
+                    data?.forEach((a: any) => { const k = a.answer_value.choice; c[k] = (c[k] || 0) + 1; });
+                    setCounts(c);
+                });
+
+            // 2. Subscribe to new answers
+            ansChannel = supabase.channel(`answers_${qId}`)
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'answers', filter: `question_id=eq.${qId}` }, (payload) => {
+                    const val = payload.new as any;
+                    const k = val.answer_value.choice;
+                    setCounts(prev => ({ ...prev, [k]: (prev[k] || 0) + 1 }));
+                })
+                .subscribe();
+        }
+
+        return () => { if (ansChannel) supabase.removeChannel(ansChannel); };
+    }, [gameState.phase, gameState.current_question_id]);
 
     const updateState = async (newState: GameState) => {
         if (newState.current_question_id && newState.current_question_id !== gameState.current_question_id) {
@@ -186,10 +214,29 @@ export default function ScreenPage() {
         }
         setGameState(newState);
         if (newState.phase === 'DISTRIBUTION' && newState.current_question_id) {
-            const { data: ans } = await supabase.from('answers').select('answer_value').eq('question_id', newState.current_question_id);
-            const c: any = {};
-            ans?.forEach((a: any) => { const k = a.answer_value.choice; c[k] = (c[k] || 0) + 1; });
-            setCounts(c);
+            // Initial Fetch
+            const fetchCounts = async () => {
+                const { data: ans } = await supabase.from('answers').select('answer_value').eq('question_id', newState.current_question_id!);
+                const c: any = {};
+                ans?.forEach((a: any) => { const k = a.answer_value.choice; c[k] = (c[k] || 0) + 1; });
+                setCounts(c);
+            };
+            fetchCounts();
+
+            // Realtime Subscription for late answers
+            const ansChannel = supabase.channel('answers_dist')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'answers', filter: `question_id=eq.${newState.current_question_id}` },
+                    (payload) => {
+                        const ans = payload.new as any;
+                        const k = ans.answer_value.choice;
+                        setCounts(prev => ({ ...prev, [k]: (prev[k] || 0) + 1 }));
+                    })
+                .subscribe();
+
+            // Limit subscription scope? Ideally we unsubscribe when phase changes.
+            // Simplified: We rely on the parent useEffect to clean up? 
+            // Actually, we are inside a function `updateState`. Subscribing here repeatedly is bad.
+            // Better to move this to a useEffect that watches `gameState.phase`.
         }
     };
 

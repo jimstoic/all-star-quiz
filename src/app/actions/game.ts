@@ -112,5 +112,11 @@ export async function adminResetGame() {
 }
 
 export async function reviveAllPlayers() {
-    await supabase.from('profiles').update({ is_eligible: true }).neq('id', '0000-0000');
+    try {
+        const { error } = await supabase.from('profiles').update({ is_eligible: true }).neq('id', '0000-0000');
+        if (error) throw error;
+        console.log("Revived all players successfully.");
+    } catch (e) {
+        console.error("Revive Error:", e);
+    }
 }
