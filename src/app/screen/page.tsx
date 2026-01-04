@@ -113,26 +113,31 @@ function TextOnlyVariant({ question, phase, counts }: { question: Question, phas
 }
 
 // --- NEW Ranking Board ---
-function RankingBoard({ questionId }: { questionId: string }) {
+function RankingBoard({ questionId, onlineUsers }: { questionId: string, onlineUsers: Set<string> }) {
     const [leaders, setLeaders] = useState<any[]>([]);
     useEffect(() => {
         const fetch = async () => {
-            const { data: answers } = await supabase.from('answers').select('user_id, latency_diff, answer_value').eq('question_id', questionId).order('latency_diff', { ascending: true }).limit(10);
+            const { data: answers } = await supabase.from('answers').select('user_id, latency_diff, answer_value').eq('question_id', questionId).order('latency_diff', { ascending: true }); // Fetch ALL answers, filter later
             if (!answers) return;
             const { data: q } = await supabase.from('questions').select('correct_answer').eq('id', questionId).single();
             const valid = answers.filter((a: any) => a.answer_value.choice === q?.correct_answer);
-            const uids = valid.map(a => a.user_id);
+
+            // Filter by ONLINE Status (and distinctness)
+            const onlineValid = valid.filter(a => onlineUsers.has(a.user_id));
+            // Note: If a user answered but disconnected, they are hidden. This matches the user's request.
+
+            const uids = onlineValid.map(a => a.user_id);
             const { data: profiles } = await supabase.from('profiles').select('id, display_name').in('id', uids);
-            const merged = valid.map((a, i) => ({ ...a, profile: profiles?.find(p => p.id === a.user_id), rank: i + 1 }));
+
+            const merged = onlineValid.map((a, i) => ({ ...a, profile: profiles?.find(p => p.id === a.user_id), rank: i + 1 })).slice(0, 10); // Limit to top 10 ONLINE
             setLeaders(merged);
         };
         fetch();
-    }, [questionId]);
+    }, [questionId, onlineUsers]);
 
     return (
         <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} className="absolute inset-0 z-50 bg-blue-900/40 backdrop-blur-md p-10 flex flex-col items-center">
-
-            {/* Title Banner */}
+            {/* ... title ... */}
             <div className="absolute right-10 top-1/2 -translate-y-1/2 w-32 md:w-48 h-[80vh] bg-gradient-to-b from-blue-500 to-blue-700 rounded-2xl border-4 border-blue-400 shadow-2xl flex flex-col items-center justify-center">
                 <div className="text-white font-black text-6xl md:text-7xl writing-vertical-rl tracking-widest drop-shadow-md h-full py-8">
                     早押しランキング
@@ -193,6 +198,7 @@ const BG_STYLE = {
 export default function ScreenPage() {
     const [gameState, setGameState] = useState<GameState>({ phase: 'IDLE', current_question_id: null, start_timestamp: 0 });
     const [counts, setCounts] = useState<Record<string, number>>({});
+    const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set()); // Track Online Users
     const { isReady, enableAudio } = useGameAudio(gameState.phase);
 
     useEffect(() => {
@@ -200,7 +206,19 @@ export default function ScreenPage() {
         supabase.from('game_state').select('*').single().then(({ data }) => { if (data) updateState(data); });
         const channel = supabase.channel('screen_room').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'game_state' }, (p) => updateState(p.new as GameState)).subscribe();
 
-        return () => { supabase.removeChannel(channel); };
+        // Presence Sync (Track who is online)
+        const presenceChannel = supabase.channel('global_presence')
+            .on('presence', { event: 'sync' }, () => {
+                const state = presenceChannel.presenceState();
+                const ids = new Set(Object.keys(state));
+                setOnlineUsers(ids);
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+            supabase.removeChannel(presenceChannel);
+        };
     }, []);
 
     // Dedicated Effect for Answer Counting (with Realtime)
@@ -229,7 +247,7 @@ export default function ScreenPage() {
                 .subscribe();
         }
 
-        // NEW: Always listen for changes to the CURRENT QUESTION (e.g. fixing typos, adding images)
+        // NEW: Always listen for changes to the CURRENT QUESTION
         if (gameState.current_question_id) {
             qChannel = supabase.channel(`question_sync_${gameState.current_question_id}`)
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'questions', filter: `id=eq.${gameState.current_question_id}` },
@@ -306,7 +324,7 @@ export default function ScreenPage() {
                 )}
 
                 {gameState.phase === 'RANKING' && gameState.current_question_id && (
-                    <RankingBoard questionId={gameState.current_question_id} />
+                    <RankingBoard questionId={gameState.current_question_id} onlineUsers={onlineUsers} />
                 )}
             </div>
 
