@@ -31,10 +31,10 @@ export default function LoginPage() {
         // For now, simple insert.
 
         try {
-            // 1. Save to Supabase (Best effort)
+            // 1. Save to Supabase (Must succeed for FK constraints)
             const { data, error } = await supabase
                 .from('profiles')
-                .upsert({
+                .insert({
                     real_name: realName,
                     display_name: displayName,
                     score: 0,
@@ -43,22 +43,19 @@ export default function LoginPage() {
                 .select()
                 .single();
 
-            if (error) {
-                console.error("Supabase Login Error:", error);
-                // Fallback: Proceed locally even if DB fails (e.g. keys missing)
-            }
+            if (error) throw error;
+            if (!data) throw new Error("No data returned");
 
             // 2. Save to LocalStorage
-            const userId = data?.id || crypto.randomUUID();
-            const userProfile = { id: userId, realName, displayName };
+            const userProfile = { id: data.id, realName, displayName };
             localStorage.setItem('asq_user', JSON.stringify(userProfile));
 
             // 3. Redirect
             router.push('/play');
 
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            alert('Login failed. Please try again.');
+            alert(`Login Failed: ${err.message || 'Unknown Error'}`);
         } finally {
             setIsLoading(false);
         }

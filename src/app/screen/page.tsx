@@ -110,7 +110,7 @@ function RankingBoard({ questionId }: { questionId: string }) {
             {/* Title Banner */}
             <div className="absolute right-10 top-1/2 -translate-y-1/2 w-32 md:w-48 h-[80vh] bg-gradient-to-b from-blue-500 to-blue-700 rounded-2xl border-4 border-blue-400 shadow-2xl flex flex-col items-center justify-center">
                 <div className="text-white font-black text-6xl md:text-7xl writing-vertical-rl tracking-widest drop-shadow-md h-full py-8">
-                    FASTEST RANK
+                    早押しランキング
                 </div>
             </div>
 
