@@ -138,6 +138,17 @@ export default function PlayPage() {
                     } else {
                         newState.question = gameState.question;
                     }
+
+                    // Fallback: If IDLE, verify existence (Hard Reset safety)
+                    if (newState.phase === 'IDLE' && user) {
+                        const { data } = await supabase.from('profiles').select('id').eq('id', user.id).maybeSingle();
+                        if (!data) {
+                            localStorage.removeItem('asq_user');
+                            router.push('/');
+                            return;
+                        }
+                    }
+
                     setGameState(newState);
                 }
             ).subscribe();
