@@ -208,8 +208,8 @@ function RankingBoard({ questionId, onlineUsers }: { questionId: string, onlineU
                             // Stagger logic relative to page start
                             const globalIndex = (pageIndex * PAGE_SIZE) + i;
                             const isLastOverall = globalIndex === allLeaders.length - 1;
-                            // Tease Delay: If it's the very last person (and list is decent size), wait extra 2.5s
-                            const delay = i * 0.1 + (isLastOverall && allLeaders.length > 5 ? 2.5 : 0);
+                            // Tease Delay: If it's the very last person (and list > 1), wait extra 3 seconds
+                            const delay = (i * 0.1) + (isLastOverall && allLeaders.length > 1 ? 3.0 : 0);
 
                             return (
                                 <motion.div

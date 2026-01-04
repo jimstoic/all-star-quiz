@@ -77,8 +77,9 @@ export default function AdminPage() {
         const updateData: any = { phase };
 
         // If starting a NEW question (INTRO), reset its previous answers
-        if (questionId && phase === 'INTRO') {
-            await resetQuestionAnswers(questionId);
+        const targetQ = questionId || currentQuestionId;
+        if (targetQ && phase === 'INTRO') {
+            await resetQuestionAnswers(targetQ);
         }
 
         if (questionId !== undefined) updateData.current_question_id = questionId;
