@@ -56,9 +56,18 @@ export default function PlayPage() {
         const parsed = JSON.parse(saved);
         setUser(parsed);
 
-        // Initial check
-        supabase.from('profiles').select('is_eligible').eq('id', parsed.id).single()
-            .then(({ data }) => { if (data) setIsEligible(data.is_eligible ?? true); });
+        // Initial check & Validation
+        supabase.from('profiles').select('is_eligible').eq('id', parsed.id).maybeSingle()
+            .then(({ data, error }) => {
+                if (!data) {
+                    // User does not exist in DB (likely due to DB reset)
+                    // Force logout so they can re-join and create a valid record
+                    localStorage.removeItem('asq_user');
+                    router.push('/');
+                } else {
+                    setIsEligible(data.is_eligible ?? true);
+                }
+            });
 
         // Realtime Profile Updates (Kick out)
         const channel = supabase.channel('profile_updates')
