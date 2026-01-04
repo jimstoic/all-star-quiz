@@ -104,12 +104,19 @@ export default function AdminPage() {
         if (nextIdx >= PHASE_ORDER.length) nextIdx = 0;
         const next = PHASE_ORDER[nextIdx];
         if (next === 'DISTRIBUTION' && currentQuestionId) {
+            // OPTIMIZATION: Switch Phase FIRST (Instant UI), then Calculate (Background)
+            // This prevents the "wait" feeling. Calculation just needs to end before REVEAL.
             setLoading(true);
-            const res = await calculateResults(currentQuestionId);
-            setLastResult(`Correct: ${res.correctCount}`);
-            setLoading(false);
+            await updateGameState(next);
+
+            // Background Calculation
+            calculateResults(currentQuestionId).then(res => {
+                setLastResult(`Correct: ${res.correctCount}`);
+                setLoading(false);
+            });
+        } else {
+            updateGameState(next);
         }
-        updateGameState(next);
     };
 
     // Question Management
