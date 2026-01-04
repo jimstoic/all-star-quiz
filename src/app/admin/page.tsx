@@ -467,7 +467,7 @@ export default function AdminPage() {
 
                     {/* Footer Actions */}
                     <div className="mt-4 pt-4 border-t border-gray-800 space-y-2">
-                        <button onClick={() => reviveAllPlayers().then(r => r?.success ? alert('All Players Revived!') : alert(`Error: ${r?.error}`))} className="w-full bg-green-900/50 hover:bg-green-800 text-green-300 p-3 rounded flex items-center justify-center gap-2 border border-green-800 transition-colors">
+                        <button onClick={() => reviveAllPlayers().then(r => r?.success ? alert(`Success! Revived ${r.count} players.`) : alert(`Error: ${r?.error}`))} className="w-full bg-green-900/50 hover:bg-green-800 text-green-300 p-3 rounded flex items-center justify-center gap-2 border border-green-800 transition-colors">
                             <Zap className="w-4 h-4" /> REVIVE ALL PLAYERS (Keep Scores)
                         </button>
 

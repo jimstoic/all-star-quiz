@@ -150,11 +150,18 @@ export async function adminResetGame() {
 
 export async function reviveAllPlayers() {
     try {
-        // Direct DB Update (Bypasses RLS if using Service Role client)
-        // Ensure "Admin" user (0000-0000) isn't affected if it exists, though it doesn't matter much.
-        const { error } = await supabase.from('profiles').update({ is_eligible: true }).neq('id', '00000000-0000-0000-0000-000000000000');
+        // Critical Check: ensure we are actually using the Service Role
+        if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            console.error("Missing SUPABASE_SERVICE_ROLE_KEY");
+            return { success: false, error: "SERVER CONFIG ERROR: SUPABASE_SERVICE_ROLE_KEY is missing. Cannot perform Admin actions." };
+        }
+
+        // Direct DB Update (using standard NIL UUID just in case)
+        const { error, count } = await supabase.from('profiles').update({ is_eligible: true }).neq('id', '00000000-0000-0000-0000-000000000000').select('id', { count: 'exact' });
+
         if (error) throw error;
-        return { success: true };
+
+        return { success: true, count };
     } catch (e: any) {
         console.error("Revive Error:", e);
         return { success: false, error: e.message };
