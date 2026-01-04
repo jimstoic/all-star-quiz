@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { GamePhase, Question } from '@/types/game';
 import { calculateResults, applyElimination, reviveAllPlayers } from '@/app/actions/game';
-import { Loader2, Zap, ArrowRight, Skull, Plus, Trash2, X } from 'lucide-react';
+import { Loader2, Zap, ArrowRight, Skull, Plus, Trash2, X, Upload, ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const PHASE_ORDER: GamePhase[] = ['IDLE', 'INTRO', 'ACTIVE', 'LOCKED', 'DISTRIBUTION', 'REVEAL', 'RANKING'];
@@ -108,93 +108,189 @@ export default function AdminPage() {
     };
 
     const QuestionModal = () => {
-        const [text, setText] = useState(editingQuestion?.text || '');
-        // Initial opts setup
-        const initOpts = editingQuestion ? editingQuestion.options.map(o => o.label) : ['', '', '', ''];
-        const [opts, setOpts] = useState(initOpts);
+        // Mode logic
+        const getInitMode = () => {
+            if (!editingQuestion) return '4-TEXT';
+            const count = editingQuestion.options.length;
+            const hasImg = editingQuestion.options.some(o => !!o.image_url);
+            if (count === 2) return hasImg ? '2-IMAGE' : '2-TEXT';
+            return hasImg ? '4-IMAGE' : '4-TEXT';
+        };
 
-        // Initial images setup
-        const initimgs = editingQuestion ? editingQuestion.options.map(o => o.image_url || '') : ['', '', '', ''];
-        const [optImgs, setOptImgs] = useState(initimgs);
+        const [qMode, setQMode] = useState<string>(getInitMode());
+        const [text, setText] = useState(editingQuestion?.text || '');
+
+        // Resize helper
+        const resize = (arr: any[], size: number, fill: any) => {
+            if (arr.length === size) return arr;
+            if (arr.length > size) return arr.slice(0, size);
+            return [...arr, ...Array(size - arr.length).fill(fill)];
+        };
+
+        const [opts, setOpts] = useState(() => {
+            const base = editingQuestion ? editingQuestion.options.map(o => o.label) : [];
+            const size = (getInitMode().startsWith('2')) ? 2 : 4;
+            return resize(base, size, '');
+        });
+
+        const [optImgs, setOptImgs] = useState(() => {
+            const base = editingQuestion ? editingQuestion.options.map(o => o.image_url || '') : [];
+            const size = (getInitMode().startsWith('2')) ? 2 : 4;
+            return resize(base, size, '');
+        });
 
         const initCorrect = editingQuestion ? editingQuestion.options.findIndex(o => o.id === editingQuestion.correct_answer) : 0;
         const [correctIdx, setCorrectIdx] = useState(initCorrect === -1 ? 0 : initCorrect);
-
         const [submitting, setSubmitting] = useState(false);
-        const [showImages, setShowImages] = useState(optImgs.some(u => !!u));
+        const [uploading, setUploading] = useState<number | null>(null);
+
+        // Effect for Mode Switch
+        useEffect(() => {
+            const size = qMode.startsWith('2') ? 2 : 4;
+            setOpts(prev => resize(prev, size, ''));
+            setOptImgs(prev => resize(prev, size, ''));
+            setCorrectIdx(prev => prev >= size ? 0 : prev);
+        }, [qMode]);
+
+        const handleFileChange = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+            if (!e.target.files || e.target.files.length === 0) return;
+            const file = e.target.files[0];
+            setUploading(index);
+
+            try {
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+                const filePath = `${fileName}`;
+
+                // Upload to Supabase Storage "quiz_assets" bucket
+                const { error: uploadError } = await supabase.storage
+                    .from('quiz_assets')
+                    .upload(filePath, file);
+
+                if (uploadError) throw uploadError;
+
+                const { data } = supabase.storage.from('quiz_assets').getPublicUrl(filePath);
+
+                const newImgs = [...optImgs];
+                newImgs[index] = data.publicUrl;
+                setOptImgs(newImgs);
+
+            } catch (err: any) {
+                console.error(err);
+                alert(`Upload Failed: ${err.message}. Make sure 'quiz_assets' bucket exists and is Public.`);
+            } finally {
+                setUploading(null);
+            }
+        };
 
         const handleSubmit = async (e: React.FormEvent) => {
             e.preventDefault();
             setSubmitting(true);
+            const isImgMode = qMode.includes('IMAGE');
+
             const options = opts.map((label, i) => ({
                 id: `opt${i + 1}`,
                 label: label || `Option ${i + 1}`,
-                image_url: showImages && optImgs[i] ? optImgs[i] : null
+                image_url: isImgMode && optImgs[i] ? optImgs[i] : null
             }));
+
             const newVal = {
-                type: 'choice4',
+                type: qMode.startsWith('2') ? 'choice2' : 'choice4',
                 text,
                 time_limit: 10,
-                options, // JSONB structure
+                options,
                 correct_answer: `opt${correctIdx + 1}`
             };
 
-            if (editingQuestion) {
-                await supabase.from('questions').update(newVal).eq('id', editingQuestion.id);
-            } else {
-                await supabase.from('questions').insert(newVal);
+            try {
+                if (editingQuestion) {
+                    await supabase.from('questions').update(newVal).eq('id', editingQuestion.id);
+                } else {
+                    await supabase.from('questions').insert(newVal);
+                }
+                setShowModal(false);
+            } catch (err) {
+                alert('Save failed');
             }
-
             setSubmitting(false);
-            setShowModal(false);
         };
 
         return (
             <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
                 <div className="bg-gray-800 p-6 rounded-xl w-full max-w-2xl space-y-4 shadow-2xl border border-gray-700 max-h-[90vh] overflow-y-auto">
-                    <h3 className="text-xl font-bold flex justify-between items-center">
-                        {editingQuestion ? 'Edit Question' : 'Create Question'}
-                        <button onClick={() => setShowModal(false)}><X /></button>
-                    </h3>
+                    <div className="flex justify-between items-center">
+                        <h3 className="text-xl font-bold">{editingQuestion ? 'Edit' : 'Create'} Question</h3>
+                        <div className="flex bg-gray-900 rounded p-1 gap-1">
+                            {['4-TEXT', '4-IMAGE', '2-TEXT', '2-IMAGE'].map(m => (
+                                <button key={m} type="button" onClick={() => setQMode(m)} className={`px-3 py-1 text-xs rounded font-bold transition-all ${qMode === m ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800'}`}>
+                                    {m}
+                                </button>
+                            ))}
+                        </div>
+                        <button onClick={() => setShowModal(false)}><X className="w-6 h-6" /></button>
+                    </div>
+
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
-                            <label className="text-xs text-gray-400">Question Text</label>
-                            <input required className="w-full bg-gray-900 border border-gray-600 rounded p-2" value={text} onChange={e => setText(e.target.value)} placeholder="e.g. What is...?" />
+                            <label className="text-xs text-gray-400 mb-1 block">Question Text</label>
+                            <input required className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-lg" value={text} onChange={e => setText(e.target.value)} placeholder="e.g. What is this?" />
                         </div>
 
-                        <div className="flex items-center gap-2">
-                            <input type="checkbox" id="showImgs" checked={showImages} onChange={e => setShowImages(e.target.checked)} className="rounded bg-gray-900 border-gray-600" />
-                            <label htmlFor="showImgs" className="text-sm font-bold text-blue-400 cursor-pointer">Use Image Options?</label>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className={`grid gap-4 ${qMode.startsWith('2') ? 'grid-cols-2' : 'grid-cols-2'}`}>
                             {opts.map((o, i) => (
                                 <div key={i} className={`p-3 rounded border-l-4 ${i === correctIdx ? 'border-green-500 bg-gray-900' : 'border-gray-600 bg-gray-800'}`}>
+
+                                    {/* Header: Radio + Label */}
                                     <div className="flex justify-between mb-2">
-                                        <span className="text-xs text-gray-500 font-mono">Option {i + 1}</span>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xs text-green-500">{i === correctIdx ? 'CORRECT' : ''}</span>
-                                            <input type="radio" name="correct" checked={i === correctIdx} onChange={() => setCorrectIdx(i)} />
+                                        <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCorrectIdx(i)}>
+                                            <input type="radio" name="correct" checked={i === correctIdx} onChange={() => setCorrectIdx(i)} className="w-4 h-4 accent-green-500" />
+                                            <span className={`text-xs font-bold ${i === correctIdx ? 'text-green-400' : 'text-gray-500'}`}>Option {i + 1}</span>
                                         </div>
                                     </div>
-                                    <input required className="w-full bg-transparent border-b border-gray-700 focus:outline-none mb-2" value={o} onChange={e => {
-                                        const newOpts = [...opts]; newOpts[i] = e.target.value; setOpts(newOpts);
-                                    }} placeholder={`Answer Text ${i + 1}`} />
 
-                                    {showImages && (
-                                        <div className="mt-2">
-                                            <input className="w-full text-xs bg-black/30 border border-gray-700 rounded p-1 text-gray-300"
-                                                value={optImgs[i]}
-                                                onChange={e => { const newImgs = [...optImgs]; newImgs[i] = e.target.value; setOptImgs(newImgs); }}
-                                                placeholder="https://... (Image URL)"
-                                            />
-                                            {optImgs[i] && <img src={optImgs[i]} className="h-16 w-full object-cover mt-1 rounded opacity-70" />}
+                                    {/* Text Input */}
+                                    <input required className="w-full bg-transparent border-b border-gray-700 focus:outline-none mb-2 py-1" value={o} onChange={e => {
+                                        const newOpts = [...opts]; newOpts[i] = e.target.value; setOpts(newOpts);
+                                    }} placeholder={`Answer ${i + 1}`} />
+
+                                    {/* Image Input */}
+                                    {qMode.includes('IMAGE') && (
+                                        <div className="mt-2 space-y-2">
+                                            {/* Preview */}
+                                            {optImgs[i] ? (
+                                                <div className="relative group">
+                                                    <img src={optImgs[i]} className="h-24 w-full object-cover rounded border border-gray-600" />
+                                                    <button type="button" onClick={() => { const n = [...optImgs]; n[i] = ''; setOptImgs(n) }} className="absolute top-1 right-1 bg-black/60 p-1 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"><X className="w-3 h-3" /></button>
+                                                </div>
+                                            ) : (
+                                                <label className={`h-24 w-full bg-black/20 rounded border-2 border-dashed border-gray-700 flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-900/10 transition-colors ${uploading === i ? 'opacity-50' : ''}`}>
+                                                    {uploading === i ? (
+                                                        <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                                                    ) : (
+                                                        <>
+                                                            <Upload className="w-6 h-6 text-gray-500 mb-1" />
+                                                            <span className="text-[10px] text-gray-500">Upload Image</span>
+                                                        </>
+                                                    )}
+                                                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(i, e)} disabled={uploading !== null} />
+                                                </label>
+                                            )}
+
+                                            {/* URL Fallback */}
+                                            <div className="flex items-center gap-1">
+                                                <ImageIcon className="w-3 h-3 text-gray-600" />
+                                                <input className="flex-1 text-[10px] bg-transparent border-none text-gray-500 focus:text-white focus:ring-0"
+                                                    value={optImgs[i]}
+                                                    onChange={e => { const newImgs = [...optImgs]; newImgs[i] = e.target.value; setOptImgs(newImgs); }}
+                                                    placeholder="or paste URL..."
+                                                />
+                                            </div>
                                         </div>
                                     )}
                                 </div>
                             ))}
                         </div>
-                        <button disabled={submitting} type="submit" className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold">
+                        <button disabled={submitting || uploading !== null} type="submit" className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 py-3 rounded-lg font-bold shadow-lg transition-all">
                             {submitting ? 'Saving...' : (editingQuestion ? 'Update Question' : 'Create Question')}
                         </button>
                     </form>
