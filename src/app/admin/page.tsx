@@ -162,14 +162,14 @@ export default function AdminPage() {
                 const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
                 const filePath = `${fileName}`;
 
-                // Upload to Supabase Storage "quiz_assets" bucket
+                // Upload to Supabase Storage "quiz_asset" bucket
                 const { error: uploadError } = await supabase.storage
-                    .from('quiz_assets')
+                    .from('quiz_asset')
                     .upload(filePath, file);
 
                 if (uploadError) throw uploadError;
 
-                const { data } = supabase.storage.from('quiz_assets').getPublicUrl(filePath);
+                const { data } = supabase.storage.from('quiz_asset').getPublicUrl(filePath);
 
                 const newImgs = [...optImgs];
                 newImgs[index] = data.publicUrl;
