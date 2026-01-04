@@ -206,11 +206,13 @@ export default function PlayPage() {
                                 {gameState.question.options.map((opt, i) => (
                                     <QuizButton
                                         key={opt.id}
+                                        index={i}
                                         label={gameState.question?.options.some(o => !!o.image_url) ? `Option ${i + 1}` : opt.label}
                                         color={i === 0 ? 'blue' : i === 1 ? 'red' : i === 2 ? 'green' : 'yellow'}
                                         selected={selectedChoice === opt.id}
                                         disabled={gameState.phase !== 'ACTIVE'}
                                         onClick={() => handleChoiceSubmit(opt.id)}
+                                        className={gameState.phase === 'REVEAL' && opt.id === gameState.question?.correct_answer ? "ring-4 ring-yellow-400 ring-offset-4 ring-offset-black animate-pulse" : ""}
                                     />
                                 ))}
                             </div>

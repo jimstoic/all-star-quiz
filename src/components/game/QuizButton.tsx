@@ -8,6 +8,7 @@ type ColorVariant = 'blue' | 'red' | 'green' | 'yellow';
 
 interface QuizButtonProps {
     label: string;
+    index?: number; // 0-3
     color: ColorVariant;
     selected?: boolean;
     disabled?: boolean;
@@ -15,19 +16,9 @@ interface QuizButtonProps {
     className?: string;
 }
 
-const VARIANTS = {
-    blue: "bg-blue-600 border-blue-800 shadow-[0_6px_0_rgb(30,64,175)] hover:bg-blue-500",
-    red: "bg-red-600 border-red-800 shadow-[0_6px_0_rgb(153,27,27)] hover:bg-red-500",
-    green: "bg-green-600 border-green-800 shadow-[0_6px_0_rgb(22,101,52)] hover:bg-green-500",
-    yellow: "bg-yellow-500 border-yellow-700 shadow-[0_6px_0_rgb(161,98,7)] hover:bg-yellow-400 text-yellow-950",
-};
+// ... styles ...
 
-const PRESSED_STYLES = "active:shadow-none active:translate-y-[6px]";
-const DISABLED_STYLES = "opacity-50 cursor-not-allowed grayscale shadow-none translate-y-[6px]";
-const SELECTED_DISABLED_STYLES = "cursor-default shadow-none translate-y-[6px]"; // Full color, but static
-const SELECTED_STYLES = "ring-4 ring-white ring-offset-4 ring-offset-slate-900 scale-[1.02]";
-
-export function QuizButton({ label, color, selected, disabled, onClick, className }: QuizButtonProps) {
+export function QuizButton({ label, index, color, selected, disabled, onClick, className }: QuizButtonProps) {
     return (
         <motion.button
             whileTap={!disabled ? { scale: 0.95 } : undefined}
@@ -44,6 +35,11 @@ export function QuizButton({ label, color, selected, disabled, onClick, classNam
                 className
             )}
         >
+            {/* Number Badge */}
+            <div className="absolute top-2 left-2 bg-black/20 text-white/50 text-xl font-mono w-8 h-8 rounded-full flex items-center justify-center">
+                {index !== undefined ? index + 1 : ''}
+            </div>
+
             {selected && (
                 <div className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-sm">
                     <Check className="w-5 h-5 text-black" strokeWidth={4} />
