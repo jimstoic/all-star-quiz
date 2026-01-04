@@ -83,6 +83,7 @@ export async function applyElimination(questionId: string) {
         const answerMap = new Map(answers?.map(a => [a.user_id, a]));
 
         const victims: string[] = [];
+        const survivors: any[] = [];
 
         for (const p of eligibleProfiles) {
             const ans = answerMap.get(p.id);
@@ -100,6 +101,23 @@ export async function applyElimination(questionId: string) {
 
             if (!survived) {
                 victims.push(p.id);
+            } else if (ans) {
+                // Add to survivors list for "Slowest Check"
+                survivors.push(ans);
+            }
+        }
+
+        // 2.5: Eliminate the SLOWEST Correct Survivor (if requested)
+        // User rule: "Eliminate Wrong Answerers + Slowest Correct Answerer"
+
+        if (survivors.length > 1) { // Only if more than 1 survivor
+            // Sort Descending latency (Larger = Slower)
+            survivors.sort((a, b) => (b.latency_diff || 0) - (a.latency_diff || 0));
+            const slowest = survivors[0];
+
+            // Check if slowest is not already victim (shouldn't be)
+            if (!victims.includes(slowest.user_id)) {
+                victims.push(slowest.user_id);
             }
         }
 

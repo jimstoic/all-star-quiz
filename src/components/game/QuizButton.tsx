@@ -16,7 +16,17 @@ interface QuizButtonProps {
     className?: string;
 }
 
-// ... styles ...
+const VARIANTS = {
+    blue: "bg-blue-600 border-blue-800 shadow-[0_6px_0_rgb(30,64,175)] hover:bg-blue-500",
+    red: "bg-red-600 border-red-800 shadow-[0_6px_0_rgb(153,27,27)] hover:bg-red-500",
+    green: "bg-green-600 border-green-800 shadow-[0_6px_0_rgb(22,101,52)] hover:bg-green-500",
+    yellow: "bg-yellow-500 border-yellow-700 shadow-[0_6px_0_rgb(161,98,7)] hover:bg-yellow-400 text-yellow-950",
+};
+
+const PRESSED_STYLES = "active:shadow-none active:translate-y-[6px]";
+const DISABLED_STYLES = "opacity-50 cursor-not-allowed grayscale shadow-none translate-y-[6px]";
+const SELECTED_DISABLED_STYLES = "cursor-default shadow-none translate-y-[6px]"; // Full color, but static
+const SELECTED_STYLES = "ring-4 ring-white ring-offset-4 ring-offset-slate-900 scale-[1.02]";
 
 export function QuizButton({ label, index, color, selected, disabled, onClick, className }: QuizButtonProps) {
     return (
