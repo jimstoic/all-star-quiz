@@ -24,6 +24,7 @@ const VARIANTS = {
 
 const PRESSED_STYLES = "active:shadow-none active:translate-y-[6px]";
 const DISABLED_STYLES = "opacity-50 cursor-not-allowed grayscale shadow-none translate-y-[6px]";
+const SELECTED_DISABLED_STYLES = "cursor-default shadow-none translate-y-[6px]"; // Full color, but static
 const SELECTED_STYLES = "ring-4 ring-white ring-offset-4 ring-offset-slate-900 scale-[1.02]";
 
 export function QuizButton({ label, color, selected, disabled, onClick, className }: QuizButtonProps) {
