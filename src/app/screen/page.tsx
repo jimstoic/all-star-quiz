@@ -121,16 +121,38 @@ function RankingBoard({ questionId, onlineUsers }: { questionId: string, onlineU
     // Fetch Data
     useEffect(() => {
         const fetch = async () => {
-            const { data: answers } = await supabase.from('answers').select('user_id, latency_diff, answer_value').eq('question_id', questionId).order('latency_diff', { ascending: true });
+            // Fetch Start Time for Latency Calculation
+            const { data: gs } = await supabase.from('game_state').select('start_timestamp').single();
+            const startTs = Number(gs?.start_timestamp || 0);
+
+            // Fetch Answers (using created_at for time accuracy)
+            const { data: answers } = await supabase.from('answers').select('user_id, created_at, answer_value').eq('question_id', questionId);
             if (!answers) return;
+
             const { data: q } = await supabase.from('questions').select('correct_answer').eq('id', questionId).single();
             const valid = answers.filter((a: any) => a.answer_value.choice === q?.correct_answer);
             const onlineValid = valid.filter(a => onlineUsers.has(a.user_id));
             const uids = onlineValid.map(a => a.user_id);
             const { data: profiles } = await supabase.from('profiles').select('id, display_name').in('id', uids);
 
-            // Assign ranks based on sorted order
-            const merged = onlineValid.map((a, i) => ({ ...a, profile: profiles?.find(p => p.id === a.user_id), rank: i + 1 }));
+            // Calculate Latency based on Server Time (created_at) vs Start Time
+            // This aligns with the elimination logic to prevent discrepancies.
+            const rankedRaw = onlineValid.map(a => {
+                const arrTime = new Date(a.created_at).getTime();
+                const latency = Math.max(0, arrTime - startTs);
+                return { ...a, latency_manual: latency };
+            });
+
+            // Sort: Smallest Latency (Fastest) -> Largest (Slowest)
+            rankedRaw.sort((a, b) => a.latency_manual - b.latency_manual);
+
+            // Assign ranks
+            const merged = rankedRaw.map((a, i) => ({
+                ...a,
+                profile: profiles?.find(p => p.id === a.user_id),
+                rank: i + 1,
+                latency_diff: a.latency_manual // Use manual calculation for display
+            }));
 
             // Handle Pagination Logic Request: "Show >10, switch after delay"
             setAllLeaders(merged);

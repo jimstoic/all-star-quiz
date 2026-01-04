@@ -28,6 +28,9 @@ export async function calculateResults(questionId: string) {
 
         const updates = [];
 
+        const { data: gameState } = await supabase.from('game_state').select('start_timestamp').eq('id', 1).single();
+        const startTs = gameState?.start_timestamp || 0;
+
         // Check Correctness & Update DB
         for (const ans of answers) {
             let isCorrect = false;
@@ -39,9 +42,17 @@ export async function calculateResults(questionId: string) {
 
             // Prepare Score Update
             if (isCorrect) {
+                // Calculate Server Latency
+                const createdTime = new Date(ans.created_at).getTime();
+                // Latency = Arrival Time - Question Start Time
+                // Note: startTs is BigInt, need conversion
+                const latencyMs = Math.max(0, createdTime - Number(startTs));
+
                 const timeLimitMs = (question.time_limit || 10) * 1000;
-                const latency = Math.min(ans.latency_diff, timeLimitMs);
-                const speedFactor = 1 - (latency / timeLimitMs);
+                // Cap latency at time limit (though server arrival might be slightly later due to network)
+                const effectiveLatency = Math.min(latencyMs, timeLimitMs);
+
+                const speedFactor = 1 - (effectiveLatency / timeLimitMs);
                 const earned = Math.floor(50 + (50 * speedFactor));
                 updates.push({ user_id: ans.user_id, score_add: earned });
             }
@@ -81,7 +92,7 @@ export async function applyElimination(questionId: string) {
         if (!eligibleProfiles || eligibleProfiles.length === 0) return { count: 0 };
 
         // 2. Get all answers for this question
-        const { data: answers } = await supabase.from('answers').select('user_id, answer_value').eq('question_id', questionId);
+        const { data: answers } = await supabase.from('answers').select('user_id, answer_value, created_at').eq('question_id', questionId);
         const answerMap = new Map(answers?.map(a => [a.user_id, a]));
 
         const victims: string[] = [];
@@ -113,9 +124,11 @@ export async function applyElimination(questionId: string) {
         // User rule: "Eliminate Wrong Answerers + Slowest Correct Answerer"
 
         if (survivors.length > 1) { // Only if more than 1 survivor
-            // Sort Descending latency (Larger = Slower)
-            survivors.sort((a, b) => (b.latency_diff || 0) - (a.latency_diff || 0));
-            const slowest = survivors[0];
+            // Sort by Server Timestamp (created_at). Ascending = Oldest First (Fastest).
+            survivors.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+            // The LAST item is the Newest (Latest/Slowest)
+            const slowest = survivors[survivors.length - 1];
 
             // Check if slowest is not already victim (shouldn't be)
             if (!victims.includes(slowest.user_id)) {
@@ -123,21 +136,7 @@ export async function applyElimination(questionId: string) {
             }
         }
 
-        // 3. Execute Order 66 via RPC (Bypass RLS)
-        // logic: if everyone was wrong, and we have multiple people, we kill them all?
-        // or if we have 1 person and they are wrong, they die.
-        // if 1 person and they are right, they live.
-
-        // Safety: If there is only 1 eligible player left, and they answered Correctly, 
-        // the loop above sets survived=true, so they are NOT in victims.
-        // If they answered WRONG, they ARE in victims.
-        // The issue user reported: "Last survivor appears in ranking but is eliminated?"
-        // If the survivor answered correctly, they won't be in `victims`.
-        // If the user meant "The last person is automatically eliminated", that shouldn't happen with this logic.
-        // However, we should return the SURVIVOR count too.
-
         if (victims.length > 0) {
-            // await supabase.from('profiles').update({ is_eligible: false }).in('id', victims);
             const { error } = await supabase.rpc('eliminate_players', { victim_ids: victims });
             if (error) throw error;
         }
