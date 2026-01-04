@@ -131,13 +131,14 @@ function RankingBoard({ questionId, onlineUsers }: { questionId: string, onlineU
 
             const { data: q } = await supabase.from('questions').select('correct_answer').eq('id', questionId).single();
             const valid = answers.filter((a: any) => a.answer_value.choice === q?.correct_answer);
-            const onlineValid = valid.filter(a => onlineUsers.has(a.user_id));
-            const uids = onlineValid.map(a => a.user_id);
+
+            // Show ALL valid answers (even if user disconnected/slept)
+            const uids = valid.map((a: any) => a.user_id);
             const { data: profiles } = await supabase.from('profiles').select('id, display_name').in('id', uids);
 
             // Calculate Latency based on Server Time (created_at) vs Start Time
             // This aligns with the elimination logic to prevent discrepancies.
-            const rankedRaw = onlineValid.map(a => {
+            const rankedRaw = valid.map((a: any) => {
                 const arrTime = new Date(a.created_at).getTime();
                 const latency = Math.max(0, arrTime - startTs);
                 return { ...a, latency_manual: latency };
