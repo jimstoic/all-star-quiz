@@ -26,7 +26,7 @@ export async function calculateResults(questionId: string) {
 
         const updates = [];
 
-        // Check Correctness
+        // Check Correctness & Update DB
         for (const ans of answers) {
             let isCorrect = false;
             if (question.type === 'sort') {
@@ -35,6 +35,7 @@ export async function calculateResults(questionId: string) {
                 if (ans.answer_value.choice === question.correct_answer) isCorrect = true;
             }
 
+            // Prepare Score Update
             if (isCorrect) {
                 const timeLimitMs = (question.time_limit || 10) * 1000;
                 const latency = Math.min(ans.latency_diff, timeLimitMs);
@@ -42,6 +43,9 @@ export async function calculateResults(questionId: string) {
                 const earned = Math.floor(50 + (50 * speedFactor));
                 updates.push({ user_id: ans.user_id, score_add: earned });
             }
+
+            // NEW: Update Answer Record with Result
+            await supabase.from('answers').update({ is_correct: isCorrect }).eq('id', ans.id);
         }
 
         // Apply Score Updates

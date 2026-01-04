@@ -82,8 +82,12 @@ export default function PlayPage() {
         return () => { supabase.removeChannel(channel); };
     }, [router]);
 
+    // Local State for Result
+    const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+
     // Sync Game State (Standard)
     useEffect(() => {
+        // ... (Existing GameState Sync Logic - keep it!)
         const channel = supabase.channel('game_room')
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'game_state' },
                 async (payload) => {
@@ -92,25 +96,57 @@ export default function PlayPage() {
                         const { data: q } = await supabase.from('questions').select('*').eq('id', newState.current_question_id).single();
                         if (q) newState.question = q;
                         setSelectedChoice(null); // Reset selection
+                        setIsCorrect(null); // Reset result
                     } else {
                         newState.question = gameState.question;
                     }
                     setGameState(newState);
                 }
             ).subscribe();
-        // Initial fetch & Question sync
+
+        // Initial fetch & Question sync & SELF ANSWER RESTORE
         supabase.from('game_state').select('*').single().then(async ({ data }) => {
             if (data) {
                 let question = undefined;
                 if (data.current_question_id) {
                     const { data: q } = await supabase.from('questions').select('*').eq('id', data.current_question_id).single();
                     if (q) question = q;
+
+                    // RECOVER: Did I already answer this?
+                    if (user) {
+                        const { data: ans } = await supabase.from('answers').select('*')
+                            .eq('question_id', data.current_question_id)
+                            .eq('user_id', user.id).maybeSingle();
+                        if (ans) {
+                            setSelectedChoice(ans.answer_value.choice);
+                            setIsCorrect(ans.is_correct);
+                        }
+                    }
                 }
                 setGameState(old => ({ ...old, ...data, question }));
             }
         });
-        return () => { supabase.removeChannel(channel); };
-    }, []);
+
+        // Listen for MY Answer Updates (for Result)
+        const ansChannel = supabase.channel('my_answer_updates')
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'answers',
+                filter: user ? `user_id=eq.${user.id}` : undefined
+            }, (payload) => {
+                const updated = payload.new as any;
+                if (updated.question_id === gameState.current_question_id) {
+                    setIsCorrect(updated.is_correct);
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+            supabase.removeChannel(ansChannel);
+        };
+    }, [user, gameState.current_question_id]); // added user dep for answer fetch
 
     const handleChoiceSubmit = async (choiceId: string) => {
         if (gameState.phase !== 'ACTIVE' || selectedChoice || !isEligible || !user) return;
@@ -172,9 +208,9 @@ export default function PlayPage() {
                             </div>
 
                             {/* Reveal Status */}
-                            {gameState.phase === 'REVEAL' && (
+                            {gameState.phase === 'REVEAL' && isCorrect !== null && (
                                 <div className="text-center mt-4">
-                                    {selectedChoice === gameState.question.correct_answer ? (
+                                    {isCorrect ? (
                                         <div className="text-green-400 text-2xl font-black animate-bounce">CORRECT!</div>
                                     ) : (
                                         <div className="text-red-500 text-2xl font-black">WRONG...</div>
