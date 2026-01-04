@@ -463,8 +463,16 @@ export default function AdminPage() {
 
                         <button onClick={async () => {
                             if (!confirm("Are you sure? This will kick everyone out.")) return;
-                            await supabase.from('profiles').delete().neq('id', '0000');
+                            setLoading(true);
+                            // 1. Clear Answers (FK Constraint)
+                            await supabase.from('answers').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+                            // 2. Delete Profiles
+                            await supabase.from('profiles').delete().neq('id', '0000-0000');
+                            // 3. Reset Game State
+                            await supabase.from('game_state').update({ phase: 'IDLE', current_question_id: null }).eq('id', 1);
+
                             setPlayers([]);
+                            setLoading(false);
                         }} className="w-full bg-red-900/30 hover:bg-red-900/50 text-red-400 p-3 rounded flex items-center justify-center gap-2 border border-red-900/50 transition-colors">
                             <Trash2 className="w-4 h-4" /> RESET / KICK ALL
                         </button>
