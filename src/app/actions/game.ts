@@ -144,7 +144,7 @@ export async function applyElimination(questionId: string) {
 
 export async function adminResetGame() {
     // Delete all players to start fresh (Active players will be auto-logged out via Realtime)
-    await supabase.from('profiles').delete().neq('id', '0000-0000'); // Delete all
+    await supabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
     await supabase.from('game_state').update({ phase: 'IDLE', current_question_id: null }).eq('id', 1);
 }
 
@@ -152,7 +152,7 @@ export async function reviveAllPlayers() {
     try {
         // Direct DB Update (Bypasses RLS if using Service Role client)
         // Ensure "Admin" user (0000-0000) isn't affected if it exists, though it doesn't matter much.
-        const { error } = await supabase.from('profiles').update({ is_eligible: true }).neq('id', '0000-0000');
+        const { error } = await supabase.from('profiles').update({ is_eligible: true }).neq('id', '00000000-0000-0000-0000-000000000000');
         if (error) throw error;
         return { success: true };
     } catch (e: any) {
@@ -168,7 +168,7 @@ export async function adminRestartGame() {
         await supabase.from('answers').delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
         // 2. Reset Profiles (Score 0, Eligible True)
-        await supabase.from('profiles').update({ score: 0, is_eligible: true }).neq('id', '0000-0000');
+        await supabase.from('profiles').update({ score: 0, is_eligible: true }).neq('id', '00000000-0000-0000-0000-000000000000');
 
         // 3. Reset Game State
         await supabase.from('game_state').update({ phase: 'IDLE', current_question_id: null, start_timestamp: 0 }).eq('id', 1);
