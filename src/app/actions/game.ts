@@ -28,8 +28,7 @@ export async function calculateResults(questionId: string) {
 
         const updates = [];
 
-        const { data: gameState } = await supabase.from('game_state').select('start_timestamp').eq('id', 1).single();
-        const startTs = gameState?.start_timestamp || 0;
+
 
         // Check Correctness & Update DB
         for (const ans of answers) {
@@ -92,7 +91,7 @@ export async function applyElimination(questionId: string) {
         if (!eligibleProfiles || eligibleProfiles.length === 0) return { count: 0 };
 
         // 2. Get all answers for this question
-        const { data: answers } = await supabase.from('answers').select('user_id, answer_value, created_at').eq('question_id', questionId);
+        const { data: answers } = await supabase.from('answers').select('user_id, answer_value, latency_diff').eq('question_id', questionId);
         const answerMap = new Map(answers?.map(a => [a.user_id, a]));
 
         const victims: string[] = [];
