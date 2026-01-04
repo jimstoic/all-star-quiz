@@ -28,25 +28,50 @@ function CountBadge({ count, className }: { count: number, className?: string })
 
 function GridImageVariant({ question, phase, counts }: { question: Question, phase: string, counts: Record<string, number> }) {
     return (
-        <div className="w-full max-w-7xl h-full grid grid-cols-2 gap-6 md:gap-8 p-8 pb-32">
-            {question.options.map((opt, i) => {
-                const isCorrect = phase === 'REVEAL' && opt.id === question.correct_answer;
-                const isDimmed = phase === 'REVEAL' && opt.id !== question.correct_answer;
-                return (
-                    <motion.div
-                        key={opt.id} layoutId={`opt-${opt.id}`}
-                        className={clsx("relative bg-white rounded-3xl overflow-hidden shadow-2xl flex items-center justify-center border-4 trantision-all duration-500", isCorrect ? "border-yellow-400 z-10 scale-105" : "border-slate-300")}
-                        style={{ opacity: isDimmed ? 0.4 : 1 }}
-                    >
-                        <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-800 text-6xl font-bold p-12 text-center">
-                            {opt.image_url ? <img src={opt.image_url} className="w-full h-full object-cover" /> : opt.label}
-                        </div>
-                        <div className="absolute top-4 left-4 w-20 h-20 rounded-full bg-gradient-to-b from-pink-400 to-pink-600 border-4 border-white shadow-lg flex items-center justify-center text-5xl font-black text-white drop-shadow-md">{i + 1}</div>
-                        {(phase === 'DISTRIBUTION' || phase === 'REVEAL') && (<CountBadge count={counts[opt.id] || 0} className="bottom-4 right-4" />)}
-                        {isCorrect && <div className="absolute inset-0 ring-8 ring-yellow-400 shadow-[0_0_50px_rgba(255,215,0,0.8)] animate-pulse rounded-3xl pointer-events-none" />}
-                    </motion.div>
-                );
-            })}
+        <div className="w-full h-full flex flex-col p-4 md:p-8 pb-32 max-w-7xl mx-auto gap-4">
+            {/* Question Header */}
+            <div className="bg-blue-900/80 backdrop-blur border-2 border-blue-400 rounded-2xl p-6 shadow-xl z-20 shrink-0">
+                <h2 className="text-3xl md:text-5xl font-bold text-white text-center drop-shadow-md">{question.text}</h2>
+            </div>
+
+            {/* Grid */}
+            <div className="flex-1 grid grid-cols-2 gap-4 md:gap-8 min-h-0">
+                {question.options.map((opt, i) => {
+                    const isCorrect = phase === 'REVEAL' && opt.id === question.correct_answer;
+                    const isDimmed = phase === 'REVEAL' && opt.id !== question.correct_answer;
+                    return (
+                        <motion.div
+                            key={opt.id} layoutId={`opt-${opt.id}`}
+                            className={clsx("relative bg-white rounded-3xl overflow-hidden shadow-2xl flex items-center justify-center border-4 transition-all duration-500", isCorrect ? "border-yellow-400 z-10 scale-[1.02]" : "border-slate-300")}
+                            style={{ opacity: isDimmed ? 0.4 : 1 }}
+                        >
+                            {/* Image is Main Content */}
+                            <div className="absolute inset-0 bg-slate-100">
+                                {opt.image_url ? (
+                                    <img src={opt.image_url} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold text-2xl">NO IMAGE</div>
+                                )}
+                            </div>
+
+                            {/* Label Overlay - ONLY on REVEAL */}
+                            {phase === 'REVEAL' && (
+                                <div className="absolute bottom-0 left-0 right-0 bg-black/70 p-4 backdrop-blur-sm">
+                                    <div className="text-white text-xl md:text-3xl font-bold text-center">{opt.label}</div>
+                                </div>
+                            )}
+
+                            {/* Number Badge */}
+                            <div className="absolute top-4 left-4 w-12 h-12 md:w-16 md:h-16 rounded-full bg-gradient-to-b from-pink-400 to-pink-600 border-2 md:border-4 border-white shadow-lg flex items-center justify-center text-2xl md:text-4xl font-black text-white drop-shadow-md z-10">
+                                {i + 1}
+                            </div>
+
+                            {(phase === 'DISTRIBUTION' || phase === 'REVEAL') && (<CountBadge count={counts[opt.id] || 0} className="bottom-4 right-4" />)}
+                            {isCorrect && <div className="absolute inset-0 ring-8 ring-yellow-400 shadow-[0_0_50px_rgba(255,215,0,0.8)] animate-pulse rounded-3xl pointer-events-none" />}
+                        </motion.div>
+                    );
+                })}
+            </div>
         </div>
     );
 }

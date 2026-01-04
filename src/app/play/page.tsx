@@ -115,7 +115,7 @@ export default function PlayPage() {
                                 {gameState.question.options.map((opt, i) => (
                                     <QuizButton
                                         key={opt.id}
-                                        label={opt.label}
+                                        label={gameState.question.options.some(o => !!o.image_url) ? `Option ${i + 1}` : opt.label}
                                         color={i === 0 ? 'blue' : i === 1 ? 'red' : i === 2 ? 'green' : 'yellow'}
                                         selected={selectedChoice === opt.id}
                                         disabled={gameState.phase !== 'ACTIVE'}
