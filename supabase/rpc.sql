@@ -1,7 +1,4 @@
--- Revive All Players Function (RPC) - Corrected UUID
--- Run this in Supabase SQL Editor
-
--- 1. Create the function with "SECURITY DEFINER"
+-- Existing revive_all
 create or replace function revive_all()
 returns void
 language sql
@@ -12,5 +9,16 @@ as $$
   where id != '00000000-0000-0000-0000-000000000000'; 
 $$;
 
--- 2. Allow everyone to call this function
+-- NEW: Eliminate specific players
+create or replace function eliminate_players(victim_ids uuid[])
+returns void
+language sql
+security definer
+as $$
+  update profiles
+  set is_eligible = false
+  where id = any(victim_ids);
+$$;
+
 grant execute on function revive_all() to anon, authenticated, service_role;
+grant execute on function eliminate_players(uuid[]) to anon, authenticated, service_role;

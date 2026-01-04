@@ -99,11 +99,10 @@ export async function applyElimination(questionId: string) {
             }
         }
 
-        // 3. Execute Order 66
-        // FIX: If only 1 person remains and they survived, do NOT eliminate them (Winner).
-        // If 1 person remains and they FAILED, they should be eliminated (Game Over).
-        // Actually, if victims.length == eligibleProfiles.length, EVERYONE died.
-        // We probably want to allow the game to continue or end.
+        // 3. Execute Order 66 via RPC (Bypass RLS)
+        // logic: if everyone was wrong, and we have multiple people, we kill them all?
+        // or if we have 1 person and they are wrong, they die.
+        // if 1 person and they are right, they live.
 
         // Safety: If there is only 1 eligible player left, and they answered Correctly, 
         // the loop above sets survived=true, so they are NOT in victims.
@@ -114,7 +113,9 @@ export async function applyElimination(questionId: string) {
         // However, we should return the SURVIVOR count too.
 
         if (victims.length > 0) {
-            await supabase.from('profiles').update({ is_eligible: false }).in('id', victims);
+            // await supabase.from('profiles').update({ is_eligible: false }).in('id', victims);
+            const { error } = await supabase.rpc('eliminate_players', { victim_ids: victims });
+            if (error) throw error;
         }
 
         const remainingCount = eligibleProfiles.length - victims.length;
