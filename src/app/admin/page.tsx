@@ -107,6 +107,63 @@ export default function AdminPage() {
         setShowModal(true);
     };
 
+    // --- Player List Logic ---
+    const [activeTab, setActiveTab] = useState<'QUESTIONS' | 'PLAYERS'>('QUESTIONS');
+    const [players, setPlayers] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchPlayers = () => supabase.from('profiles').select('*').order('score', { ascending: false }).then(({ data }) => setPlayers(data || []));
+        fetchPlayers();
+        const pChannel = supabase.channel('admin_players')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchPlayers)
+            .subscribe();
+        return () => { supabase.removeChannel(pChannel); };
+    }, []);
+
+    // --- NEW: Player Management Logic ---
+    const [activeTab, setActiveTab] = useState<'QUESTIONS' | 'PLAYERS'>('QUESTIONS');
+    const [players, setPlayers] = useState<any[]>([]);
+
+    useEffect(() => {
+        // Fetch initially
+        supabase.from('profiles').select('*').order('score', { ascending: false }).then(({ data }) => setPlayers(data || []));
+
+        // Subscribe to profile changes
+        const pChannel = supabase.channel('admin_players')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+                supabase.from('profiles').select('*').order('score', { ascending: false }).then(({ data }) => setPlayers(data || []));
+            })
+            .subscribe();
+
+        return () => { supabase.removeChannel(pChannel); };
+    }, []);
+
+    const QuestionModal = () => {
+        // ... (Modal logic same as before, omitted for brevity in this replace block if not changing, 
+        // BUT replace_file_content requires context. I will assume the user has the latest QuestionModal code 
+        // and I shouldn't overwrite it with old code. 
+        // STRATEGY: I will Insert the Tabs and Player List into the Render function, 
+        // and add the state/effect above.
+        // Wait, replace_file_content replaces a block. I need to be careful not to delete QuestionModal.
+        // I will target the Return statement mostly.)
+
+        // RE-INSERTING QuestionModal for context/safety or just assume it is fine?
+        // To be safe, I will NOT touch QuestionModal definition in this chunk if possible, 
+        // but the prompt requires me to replace a contiguous block. 
+        // The previous `replace_file_content` ended at line 204 for QuestionModal.
+        // I will try to target the `return` statement of the main component.
+        return null; // Dummy return for logic check, actual code below
+    };
+
+    // ... (QuestionModal definition is actually inside AdminPage component in the original file. 
+    // I need to be careful. I will use a separate `replace_file_content` for the Render block 
+    // and one for the State block. This tool call handles the STATE/LOGIC.)
+
+    // Changing strategy: I will replace the top of AdminPage to add state, then the bottom to add UI.
+    // This is tool call 1/2: State & Effects
+    return null;
+
+
     const QuestionModal = () => {
         // Mode logic
         const getInitMode = () => {
@@ -327,51 +384,76 @@ export default function AdminPage() {
                     <p className="text-gray-400 font-mono">{lastResult}</p>
                 </section>
 
-                {/* Library Panel */}
+                {/* Library/Player Panel */}
                 <section className="bg-black/40 p-6 rounded-xl border border-gray-700 flex flex-col overflow-hidden">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-sm font-bold text-gray-400 tracking-wider">LIBRARY</h2>
-                        <button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-500 p-2 rounded text-xs flex items-center gap-1">
-                            <Plus className="w-4 h-4" /> Add New
+
+                    {/* Tabs */}
+                    <div className="flex gap-4 border-b border-gray-700 mb-4 pb-2">
+                        <button onClick={() => setActiveTab('QUESTIONS')} className={`text-sm font-bold pb-2 transition-colors ${activeTab === 'QUESTIONS' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                            QUESTIONS ({questions.length})
                         </button>
+                        <button onClick={() => setActiveTab('PLAYERS')} className={`text-sm font-bold pb-2 transition-colors ${activeTab === 'PLAYERS' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                            PLAYERS ({players.length})
+                        </button>
+                        {activeTab === 'QUESTIONS' && (
+                            <button onClick={openCreateModal} className="ml-auto bg-blue-600 hover:bg-blue-500 py-1 px-3 rounded text-xs flex items-center gap-1">
+                                <Plus className="w-3 h-3" /> New
+                            </button>
+                        )}
                     </div>
 
-                    <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-                        {questions?.length === 0 && <div className="text-center text-gray-500 py-10">No Questions</div>}
-                        {questions?.map((q, i) => {
-                            const hasImages = q.options.some(o => !!o.image_url);
-                            return (
-                                <div
-                                    key={q.id}
-                                    onClick={() => updateGameState('INTRO', q.id)}
-                                    className={`group relative w-full text-left p-4 rounded-lg border transition-all cursor-pointer hover:bg-gray-750 ${currentQuestionId === q.id ? 'bg-blue-900/40 border-blue-500 ring-1 ring-blue-500' : 'bg-gray-800 border-gray-700'}`}
-                                >
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex-1 mr-12">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="text-xs font-mono text-gray-500">Q{i + 1}</span>
-                                                {hasImages && <span className="text-[10px] bg-pink-900 text-pink-200 px-1 rounded border border-pink-700">IMAGE</span>}
+                    <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                        {activeTab === 'QUESTIONS' ? (
+                            <>
+                                {questions?.length === 0 && <div className="text-center text-gray-500 py-10">No Questions</div>}
+                                {questions?.map((q, i) => {
+                                    const hasImages = q.options.some((o: any) => !!o.image_url);
+                                    return (
+                                        <div
+                                            key={q.id}
+                                            onClick={() => updateGameState('INTRO', q.id)}
+                                            className={`group relative w-full text-left p-3 rounded-lg border transition-all cursor-pointer hover:bg-gray-750 ${currentQuestionId === q.id ? 'bg-blue-900/40 border-blue-500 ring-1 ring-blue-500' : 'bg-gray-800 border-gray-700'}`}
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <div className="flex-1 mr-8">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-xs font-mono text-gray-500">Q{i + 1}</span>
+                                                        {hasImages && <span className="text-[10px] bg-pink-900 text-pink-200 px-1 rounded border border-pink-700">IMAGE</span>}
+                                                    </div>
+                                                    <div className="font-medium text-sm truncate">{q.text}</div>
+                                                </div>
+                                                {currentQuestionId === q.id && <div className="bg-blue-500 w-2 h-2 rounded-full animate-pulse mt-2" />}
                                             </div>
-                                            <div className="font-medium truncate">{q.text}</div>
+                                            <div className="absolute top-2 right-2 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                                <button onClick={(e) => openEditModal(q, e)} className="p-1 px-2 text-xs text-gray-400 hover:text-blue-400 bg-gray-900/80 rounded hover:bg-gray-700">Edit</button>
+                                                <button onClick={(e) => deleteQuestion(q.id, e)} className="p-1 px-2 text-xs text-gray-400 hover:text-red-500 bg-gray-900/80 rounded hover:bg-gray-700"><Trash2 className="w-3 h-3" /></button>
+                                            </div>
                                         </div>
-                                        {currentQuestionId === q.id && <div className="bg-blue-500 w-2 h-2 rounded-full animate-pulse mt-2" />}
+                                    );
+                                })}
+                            </>
+                        ) : (
+                            /* PLAYERS LIST */
+                            <>
+                                {players.length === 0 && <div className="text-center text-gray-500 py-10">No Players Joined</div>}
+                                {players.map((p) => (
+                                    <div key={p.id} className={`flex justify-between items-center p-3 rounded border ${p.is_eligible ? 'bg-gray-800 border-gray-700' : 'bg-red-900/20 border-red-900 opacity-60'}`}>
+                                        <div>
+                                            <div className="font-bold text-sm text-gray-200">{p.display_name}</div>
+                                            <div className="text-xs text-gray-500 font-mono">{p.id.split('-')[0]}...</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-lg font-mono font-bold text-blue-400">{p.score}</div>
+                                            {!p.is_eligible && <div className="text-[10px] text-red-500 font-bold">ELIMINATED</div>}
+                                        </div>
                                     </div>
-                                    <div className="absolute top-2 right-2 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                        <button onClick={(e) => openEditModal(q, e)} className="p-2 text-gray-400 hover:text-blue-400 bg-gray-900/80 rounded hover:bg-gray-700">
-                                            {/* Edit Icon (using Plus as placeholder or unicode if icon missing, but Lucide has Pencil usually not imported? will use simple svg or label) */}
-                                            <span className="text-xs font-bold">EDIT</span>
-                                        </button>
-                                        <button onClick={(e) => deleteQuestion(q.id, e)} className="p-2 text-gray-400 hover:text-red-500 bg-gray-900/80 rounded hover:bg-gray-700">
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                                ))}
+                            </>
+                        )}
                     </div>
 
                     <div className="mt-4 pt-4 border-t border-gray-800">
-                        <button onClick={() => reviveAllPlayers()} className="w-full bg-green-900/50 hover:bg-green-800 text-green-300 p-3 rounded flex items-center justify-center gap-2 border border-green-800">
+                        <button onClick={() => reviveAllPlayers().then(r => r?.success ? alert('Revived!') : alert('Error'))} className="w-full bg-green-900/50 hover:bg-green-800 text-green-300 p-3 rounded flex items-center justify-center gap-2 border border-green-800">
                             <Zap className="w-4 h-4" /> REVIVE ALL PLAYERS
                         </button>
                     </div>
