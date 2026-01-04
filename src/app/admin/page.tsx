@@ -107,18 +107,7 @@ export default function AdminPage() {
         setShowModal(true);
     };
 
-    // --- Player List Logic ---
-    const [activeTab, setActiveTab] = useState<'QUESTIONS' | 'PLAYERS'>('QUESTIONS');
-    const [players, setPlayers] = useState<any[]>([]);
 
-    useEffect(() => {
-        const fetchPlayers = () => supabase.from('profiles').select('*').order('score', { ascending: false }).then(({ data }) => setPlayers(data || []));
-        fetchPlayers();
-        const pChannel = supabase.channel('admin_players')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchPlayers)
-            .subscribe();
-        return () => { supabase.removeChannel(pChannel); };
-    }, []);
 
     // --- NEW: Player Management Logic ---
     const [activeTab, setActiveTab] = useState<'QUESTIONS' | 'PLAYERS'>('QUESTIONS');
@@ -138,30 +127,7 @@ export default function AdminPage() {
         return () => { supabase.removeChannel(pChannel); };
     }, []);
 
-    const QuestionModal = () => {
-        // ... (Modal logic same as before, omitted for brevity in this replace block if not changing, 
-        // BUT replace_file_content requires context. I will assume the user has the latest QuestionModal code 
-        // and I shouldn't overwrite it with old code. 
-        // STRATEGY: I will Insert the Tabs and Player List into the Render function, 
-        // and add the state/effect above.
-        // Wait, replace_file_content replaces a block. I need to be careful not to delete QuestionModal.
-        // I will target the Return statement mostly.)
 
-        // RE-INSERTING QuestionModal for context/safety or just assume it is fine?
-        // To be safe, I will NOT touch QuestionModal definition in this chunk if possible, 
-        // but the prompt requires me to replace a contiguous block. 
-        // The previous `replace_file_content` ended at line 204 for QuestionModal.
-        // I will try to target the `return` statement of the main component.
-        return null; // Dummy return for logic check, actual code below
-    };
-
-    // ... (QuestionModal definition is actually inside AdminPage component in the original file. 
-    // I need to be careful. I will use a separate `replace_file_content` for the Render block 
-    // and one for the State block. This tool call handles the STATE/LOGIC.)
-
-    // Changing strategy: I will replace the top of AdminPage to add state, then the bottom to add UI.
-    // This is tool call 1/2: State & Effects
-    return null;
 
 
     const QuestionModal = () => {
