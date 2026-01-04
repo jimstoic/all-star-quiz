@@ -114,73 +114,111 @@ function TextOnlyVariant({ question, phase, counts }: { question: Question, phas
 
 // --- NEW Ranking Board ---
 function RankingBoard({ questionId, onlineUsers }: { questionId: string, onlineUsers: Set<string> }) {
-    const [leaders, setLeaders] = useState<any[]>([]);
+    const [allLeaders, setAllLeaders] = useState<any[]>([]);
+    const [pageIndex, setPageIndex] = useState(0);
+    const PAGE_SIZE = 10;
+
+    // Fetch Data
     useEffect(() => {
         const fetch = async () => {
-            const { data: answers } = await supabase.from('answers').select('user_id, latency_diff, answer_value').eq('question_id', questionId).order('latency_diff', { ascending: true }); // Fetch ALL answers, filter later
+            const { data: answers } = await supabase.from('answers').select('user_id, latency_diff, answer_value').eq('question_id', questionId).order('latency_diff', { ascending: true });
             if (!answers) return;
             const { data: q } = await supabase.from('questions').select('correct_answer').eq('id', questionId).single();
             const valid = answers.filter((a: any) => a.answer_value.choice === q?.correct_answer);
-
-            // Filter by ONLINE Status (and distinctness)
             const onlineValid = valid.filter(a => onlineUsers.has(a.user_id));
-            // Note: If a user answered but disconnected, they are hidden. This matches the user's request.
-
             const uids = onlineValid.map(a => a.user_id);
             const { data: profiles } = await supabase.from('profiles').select('id, display_name').in('id', uids);
 
-            const merged = onlineValid.map((a, i) => ({ ...a, profile: profiles?.find(p => p.id === a.user_id), rank: i + 1 })).slice(0, 10); // Limit to top 10 ONLINE
-            setLeaders(merged);
+            // Assign ranks based on sorted order
+            const merged = onlineValid.map((a, i) => ({ ...a, profile: profiles?.find(p => p.id === a.user_id), rank: i + 1 }));
+
+            // Handle Pagination Logic Request: "Show >10, switch after delay"
+            setAllLeaders(merged);
         };
         fetch();
     }, [questionId, onlineUsers]);
 
+    // Cycling Logic
+    useEffect(() => {
+        if (allLeaders.length <= PAGE_SIZE) return;
+
+        // Sequence: Page 0 (Top 10) -> Wait ~8s -> Page 1 (Rest) -> Wait -> Loop? Or Stop?
+        // User said: "Show 10... 1 sec after done... Show remaining"
+        // Let's loop for now so everyone gets screen time.
+
+        const totalPages = Math.ceil(allLeaders.length / PAGE_SIZE);
+        const interval = setInterval(() => {
+            setPageIndex(current => (current + 1) % totalPages);
+        }, 8000); // 8 seconds per page (enough for animations + reading)
+
+        return () => clearInterval(interval);
+    }, [allLeaders]);
+
+    const visibleLeaders = allLeaders.slice(pageIndex * PAGE_SIZE, (pageIndex + 1) * PAGE_SIZE);
+
     return (
         <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} className="absolute inset-0 z-50 bg-blue-900/40 backdrop-blur-md p-10 flex flex-col items-center">
-            {/* ... title ... */}
+            {/* Title Banner */}
             <div className="absolute right-10 top-1/2 -translate-y-1/2 w-32 md:w-48 h-[80vh] bg-gradient-to-b from-blue-500 to-blue-700 rounded-2xl border-4 border-blue-400 shadow-2xl flex flex-col items-center justify-center">
                 <div className="text-white font-black text-6xl md:text-7xl writing-vertical-rl tracking-widest drop-shadow-md h-full py-8">
                     早押しランキング
                 </div>
+                {/* Page Indicator */}
+                {allLeaders.length > PAGE_SIZE && (
+                    <div className="absolute -bottom-16 text-white text-2xl font-bold font-mono">
+                        {pageIndex + 1} / {Math.ceil(allLeaders.length / PAGE_SIZE)}
+                    </div>
+                )}
             </div>
 
             {/* List */}
             <div className="w-full max-w-5xl space-y-2 mt-8 mr-40">
-                {leaders.map((item, i) => {
-                    const isLast = i === leaders.length - 1 && leaders.length > 5; // Only tease if list is decent size
-                    const delay = i * 0.15 + (isLast ? 2.0 : 0); // Tease delay: +2.0s
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={pageIndex} // Key ensures re-render & animation on page switch
+                        initial={{ opacity: 0, x: 50 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -50 }}
+                        transition={{ duration: 0.5 }}
+                        className="space-y-2"
+                    >
+                        {visibleLeaders.map((item, i) => {
+                            // Stagger logic relative to page start
+                            const delay = i * 0.1;
 
-                    return (
-                        <motion.div
-                            key={item.user_id}
-                            initial={{ x: 100, opacity: 0, rotateX: 90 }}
-                            animate={{ x: 0, opacity: 1, rotateX: 0 }}
-                            transition={{ delay, type: 'spring', damping: 12 }}
-                            className="flex items-center h-16 md:h-20 bg-gradient-to-b from-blue-600 to-blue-800 border-2 border-blue-300 rounded-lg shadow-lg relative overflow-hidden group"
-                        >
-                            {/* Rank Box */}
-                            <div className="w-20 md:w-24 h-full bg-blue-900/50 border-r-2 border-blue-400 flex items-center justify-center">
-                                <span className="text-4xl md:text-5xl font-black text-white italic font-mono">{item.rank}</span>
-                            </div>
+                            return (
+                                <motion.div
+                                    key={item.user_id}
+                                    initial={{ x: 100, opacity: 0, rotateX: 90 }}
+                                    animate={{ x: 0, opacity: 1, rotateX: 0 }}
+                                    transition={{ delay, type: 'spring', damping: 12 }}
+                                    className="flex items-center h-16 md:h-20 bg-gradient-to-b from-blue-600 to-blue-800 border-2 border-blue-300 rounded-lg shadow-lg relative overflow-hidden group"
+                                >
+                                    {/* Rank Box */}
+                                    <div className="w-20 md:w-24 h-full bg-blue-900/50 border-r-2 border-blue-400 flex items-center justify-center">
+                                        <span className="text-4xl md:text-5xl font-black text-white italic font-mono">{item.rank}</span>
+                                    </div>
 
-                            {/* Name */}
-                            <div className="flex-1 px-6">
-                                <span className="text-3xl md:text-4xl font-bold text-white drop-shadow-sm truncate block">{item.profile?.display_name}</span>
-                            </div>
+                                    {/* Name */}
+                                    <div className="flex-1 px-6">
+                                        <span className="text-3xl md:text-4xl font-bold text-white drop-shadow-sm truncate block">{item.profile?.display_name}</span>
+                                    </div>
 
-                            {/* Time */}
-                            <div className="w-40 md:w-48 h-full bg-gradient-to-b from-yellow-400 to-yellow-500 border-l-2 border-blue-300 flex items-center justify-center relative">
-                                <span className="text-3xl md:text-4xl font-black text-blue-900 font-mono tracking-tighter">
-                                    {(item.latency_diff / 1000).toFixed(2)}
-                                </span>
-                                <span className="text-xs font-bold text-blue-900 absolute bottom-1 right-2">SEC</span>
-                            </div>
+                                    {/* Time */}
+                                    <div className="w-40 md:w-48 h-full bg-gradient-to-b from-yellow-400 to-yellow-500 border-l-2 border-blue-300 flex items-center justify-center relative">
+                                        <span className="text-3xl md:text-4xl font-black text-blue-900 font-mono tracking-tighter">
+                                            {(item.latency_diff / 1000).toFixed(2)}
+                                        </span>
+                                        <span className="text-xs font-bold text-blue-900 absolute bottom-1 right-2">SEC</span>
+                                    </div>
 
-                            {/* Gloss */}
-                            <div className="absolute inset-0 bg-gradient-to-b from-white/30 to-transparent pointer-events-none h-1/2" />
-                        </motion.div>
-                    );
-                })}
+                                    {/* Gloss */}
+                                    <div className="absolute inset-0 bg-gradient-to-b from-white/30 to-transparent pointer-events-none h-1/2" />
+                                </motion.div>
+                            );
+                        })}
+                    </motion.div>
+                </AnimatePresence>
             </div>
         </motion.div>
     );
@@ -221,31 +259,9 @@ export default function ScreenPage() {
         };
     }, []);
 
-    // Dedicated Effect for Answer Counting (with Realtime)
+    // Dedicated Effect for Question Edits
     useEffect(() => {
-        let ansChannel: any;
         let qChannel: any; // Listener for Question Edits
-
-        if (gameState.phase === 'DISTRIBUTION' && gameState.current_question_id) {
-            // ... (Existing Answer Logic)
-            const qId = gameState.current_question_id;
-            // 1. Fetch Initial
-            supabase.from('answers').select('answer_value').eq('question_id', qId)
-                .then(({ data }) => {
-                    const c: Record<string, number> = {};
-                    data?.forEach((a: any) => { const k = a.answer_value.choice; c[k] = (c[k] || 0) + 1; });
-                    setCounts(c);
-                });
-
-            // 2. Subscribe to new answers
-            ansChannel = supabase.channel(`answers_${qId}`)
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'answers', filter: `question_id=eq.${qId}` }, (payload) => {
-                    const val = payload.new as any;
-                    const k = val.answer_value.choice;
-                    setCounts(prev => ({ ...prev, [k]: (prev[k] || 0) + 1 }));
-                })
-                .subscribe();
-        }
 
         // NEW: Always listen for changes to the CURRENT QUESTION
         if (gameState.current_question_id) {
@@ -258,10 +274,9 @@ export default function ScreenPage() {
         }
 
         return () => {
-            if (ansChannel) supabase.removeChannel(ansChannel);
             if (qChannel) supabase.removeChannel(qChannel);
         };
-    }, [gameState.phase, gameState.current_question_id]);
+    }, [gameState.current_question_id]);
 
     const updateState = async (newState: GameState) => {
         if (newState.current_question_id && newState.current_question_id !== gameState.current_question_id) {
@@ -272,32 +287,44 @@ export default function ScreenPage() {
             newState.question = gameState.question;
         }
         setGameState(newState);
-        if (newState.phase === 'DISTRIBUTION' && newState.current_question_id) {
-            // Initial Fetch
-            const fetchCounts = async () => {
-                const { data: ans } = await supabase.from('answers').select('answer_value').eq('question_id', newState.current_question_id!);
-                const c: any = {};
-                ans?.forEach((a: any) => { const k = a.answer_value.choice; c[k] = (c[k] || 0) + 1; });
-                setCounts(c);
-            };
-            fetchCounts();
-
-            // Realtime Subscription for late answers
-            const ansChannel = supabase.channel('answers_dist')
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'answers', filter: `question_id=eq.${newState.current_question_id}` },
-                    (payload) => {
-                        const ans = payload.new as any;
-                        const k = ans.answer_value.choice;
-                        setCounts(prev => ({ ...prev, [k]: (prev[k] || 0) + 1 }));
-                    })
-                .subscribe();
-
-            // Limit subscription scope? Ideally we unsubscribe when phase changes.
-            // Simplified: We rely on the parent useEffect to clean up? 
-            // Actually, we are inside a function `updateState`. Subscribing here repeatedly is bad.
-            // Better to move this to a useEffect that watches `gameState.phase`.
-        }
     };
+
+    // Re-calculate counts whenever `onlineUsers` changes or `gameState` updates
+    // This solves the 'Ghost' issue by strictly filtering against the current presence set.
+    useEffect(() => {
+        if (['DISTRIBUTION', 'REVEAL'].includes(gameState.phase) && gameState.current_question_id) {
+            const fetchAndSubscribe = async () => {
+                const qId = gameState.current_question_id!;
+
+                // Fetch ALL answers for this question
+                const { data: allAnswers } = await supabase.from('answers').select('answer_value, user_id').eq('question_id', qId);
+
+                // Filter: Only track answers from ONLINE users
+                const validAnswers = allAnswers?.filter((a: any) => onlineUsers.has(a.user_id)) || [];
+
+                const c: Record<string, number> = {};
+                validAnswers.forEach((a: any) => { const k = a.answer_value.choice; c[k] = (c[k] || 0) + 1; });
+                setCounts(c);
+
+                // Realtime: Listen for new answers
+                const channel = supabase.channel('answers_dist_realtime')
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'answers', filter: `question_id=eq.${qId}` },
+                        (payload) => {
+                            const ans = payload.new as any;
+                            // Only add if user is ONLINE
+                            if (onlineUsers.has(ans.user_id)) {
+                                const k = ans.answer_value.choice;
+                                setCounts(prev => ({ ...prev, [k]: (prev[k] || 0) + 1 }));
+                            }
+                        })
+                    .subscribe();
+
+                return () => { supabase.removeChannel(channel); };
+            };
+            const cleanupPromise = fetchAndSubscribe();
+            return () => { cleanupPromise.then(cleanup => cleanup()); };
+        }
+    }, [gameState.phase, gameState.current_question_id, onlineUsers]);
 
     if (!isReady) return <div onClick={enableAudio} className="min-h-screen bg-black text-white flex flex-col items-center justify-center cursor-pointer font-bold text-3xl">CLICK TO START</div>;
 

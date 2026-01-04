@@ -56,15 +56,28 @@ export default function AdminPage() {
     }, []);
 
     // Game Control
+    // Auto-Lock Effect
+    useEffect(() => {
+        let timer: NodeJS.Timeout;
+        if (currentPhase === 'ACTIVE' && currentQuestionId) {
+            // Find current question duration
+            const q = questions.find(q => q.id === currentQuestionId);
+            const duration = (q?.time_limit || 10) * 1000;
+
+            // Lock 1s AFTER timer ends
+            timer = setTimeout(() => {
+                updateGameState('LOCKED');
+            }, duration + 1000);
+        }
+        return () => clearTimeout(timer);
+    }, [currentPhase, currentQuestionId, questions]);
+
     const updateGameState = async (phase: GamePhase, questionId?: string | null) => {
         setLoading(true);
         const updateData: any = { phase };
 
         // If starting a NEW question (INTRO), reset its previous answers
         if (questionId && phase === 'INTRO') {
-            // We need to call a server action or API to delete answers
-            // Since we are in a client component, we should import the action
-            // Imported `resetQuestionAnswers` from actions (needs to be added to imports)
             await resetQuestionAnswers(questionId);
         }
 
