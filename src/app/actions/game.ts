@@ -113,9 +113,10 @@ export async function adminResetGame() {
 
 export async function reviveAllPlayers() {
     try {
-        const { data, error } = await supabase.from('profiles').update({ is_eligible: true }).neq('id', '0000-0000').select('id');
+        // Use RPC function to bypass RLS policies reliably
+        const { error } = await supabase.rpc('revive_all');
         if (error) throw error;
-        return { success: true, count: data?.length || 0 };
+        return { success: true };
     } catch (e: any) {
         console.error("Revive Error:", e);
         return { success: false, error: e.message };
