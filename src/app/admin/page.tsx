@@ -74,7 +74,6 @@ export default function AdminPage() {
 
     const updateGameState = async (phase: GamePhase, questionId?: string | null) => {
         setLoading(true);
-        const updateData: any = { phase };
 
         // If starting a NEW question (INTRO), reset its previous answers
         const targetQ = questionId || currentQuestionId;
@@ -82,11 +81,14 @@ export default function AdminPage() {
             await resetQuestionAnswers(targetQ);
         }
 
-        if (questionId !== undefined) updateData.current_question_id = questionId;
-        if (phase === 'ACTIVE') updateData.start_timestamp = Date.now();
+        // Use Server Action to ensure 'start_timestamp' is set by SERVER CLOCK, not Client Clock
+        const { setGamePhase } = await import('@/app/actions/admin');
+        await setGamePhase(phase, targetQ);
 
-        await supabase.from('game_state').update(updateData).eq('id', 1);
+        // Optimistic UI update
         setCurrentPhase(phase);
+        if (targetQ) setCurrentQuestionId(targetQ);
+
         setLoading(false);
     };
 

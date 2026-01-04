@@ -324,8 +324,8 @@ export default function ScreenPage() {
                 // Fetch ALL answers for this question
                 const { data: allAnswers } = await supabase.from('answers').select('answer_value, user_id').eq('question_id', qId);
 
-                // Filter: Only track answers from ONLINE users
-                const validAnswers = allAnswers?.filter((a: any) => onlineUsers.has(a.user_id)) || [];
+                // Filter: Show ALL valid answers regardless of presence
+                const validAnswers = allAnswers || [];
 
                 const c: Record<string, number> = {};
                 validAnswers.forEach((a: any) => { const k = a.answer_value.choice; c[k] = (c[k] || 0) + 1; });
@@ -336,11 +336,8 @@ export default function ScreenPage() {
                     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'answers', filter: `question_id=eq.${qId}` },
                         (payload) => {
                             const ans = payload.new as any;
-                            // Only add if user is ONLINE
-                            if (onlineUsers.has(ans.user_id)) {
-                                const k = ans.answer_value.choice;
-                                setCounts(prev => ({ ...prev, [k]: (prev[k] || 0) + 1 }));
-                            }
+                            const k = ans.answer_value.choice;
+                            setCounts(prev => ({ ...prev, [k]: (prev[k] || 0) + 1 }));
                         })
                     .subscribe();
 
