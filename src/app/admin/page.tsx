@@ -442,25 +442,21 @@ export default function AdminPage() {
                         )}
                     </div>
 
-                    <section className="bg-black/40 p-6 rounded-xl border border-gray-700 flex flex-col overflow-hidden">
-                        {/* ... (Existing Tabs) ... */}
-                        {/* ... (Existing List) ... */}
+                    {/* Footer Actions */}
+                    <div className="mt-4 pt-4 border-t border-gray-800 space-y-2">
+                        <button onClick={() => reviveAllPlayers().then(r => r?.success ? alert('Revived!') : alert('Error'))} className="w-full bg-green-900/50 hover:bg-green-800 text-green-300 p-3 rounded flex items-center justify-center gap-2 border border-green-800 transition-colors">
+                            <Zap className="w-4 h-4" /> REVIVE ALL PLAYERS
+                        </button>
 
-                        {/* Footer Actions */}
-                        <div className="mt-4 pt-4 border-t border-gray-800 space-y-2">
-                            <button onClick={() => reviveAllPlayers().then(r => r?.success ? alert('Revived!') : alert('Error'))} className="w-full bg-green-900/50 hover:bg-green-800 text-green-300 p-3 rounded flex items-center justify-center gap-2 border border-green-800 transition-colors">
-                                <Zap className="w-4 h-4" /> REVIVE ALL PLAYERS
-                            </button>
-
-                            <button onClick={async () => {
-                                if (!confirm("Are you sure? This will kick everyone out.")) return;
-                                await supabase.from('profiles').delete().neq('id', '0000');
-                                setPlayers([]);
-                            }} className="w-full bg-red-900/30 hover:bg-red-900/50 text-red-400 p-3 rounded flex items-center justify-center gap-2 border border-red-900/50 transition-colors">
-                                <Trash2 className="w-4 h-4" /> RESET / KICK ALL
-                            </button>
-                        </div>
-                    </section>
+                        <button onClick={async () => {
+                            if (!confirm("Are you sure? This will kick everyone out.")) return;
+                            await supabase.from('profiles').delete().neq('id', '0000');
+                            setPlayers([]);
+                        }} className="w-full bg-red-900/30 hover:bg-red-900/50 text-red-400 p-3 rounded flex items-center justify-center gap-2 border border-red-900/50 transition-colors">
+                            <Trash2 className="w-4 h-4" /> RESET / KICK ALL
+                        </button>
+                    </div>
+                </section>
             </main>
 
             {showModal && <QuestionModal />}
