@@ -157,11 +157,11 @@ export async function reviveAllPlayers() {
         }
 
         // Direct DB Update (using standard NIL UUID just in case)
-        const { error, count } = await supabase.from('profiles').update({ is_eligible: true }).neq('id', '00000000-0000-0000-0000-000000000000').select('id', { count: 'exact' });
+        const { data, error } = await supabase.from('profiles').update({ is_eligible: true }).neq('id', '00000000-0000-0000-0000-000000000000').select('id');
 
         if (error) throw error;
 
-        return { success: true, count };
+        return { success: true, count: data?.length || 0 };
     } catch (e: any) {
         console.error("Revive Error:", e);
         return { success: false, error: e.message };
