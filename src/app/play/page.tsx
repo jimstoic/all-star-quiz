@@ -37,6 +37,7 @@ export default function PlayPage() {
                 (payload) => {
                     const newItem = payload.new as UserProfile;
                     setIsEligible(newItem.is_eligible);
+                    setUser(prev => prev ? { ...prev, ...newItem } : null); // Update Score/Name
                 }
             ).subscribe();
 
@@ -94,7 +95,10 @@ export default function PlayPage() {
     return (
         <div className="min-h-screen flex flex-col bg-slate-950 text-white p-4 pb-20 safe-area-inset-bottom">
             <header className="flex justify-between items-center mb-6">
-                <div className="text-sm font-bold text-slate-400">{user.display_name}</div>
+                <div>
+                    <div className="text-sm font-bold text-slate-400">{user.display_name}</div>
+                    <div className="text-xs text-slate-500 font-mono">SCORE: {user.score || 0}</div>
+                </div>
                 <div className="bg-slate-800 px-3 py-1 rounded-full text-xs text-cyan-400">{gameState.phase}</div>
             </header>
 
