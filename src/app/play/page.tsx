@@ -98,10 +98,19 @@ export default function PlayPage() {
                     setGameState(newState);
                 }
             ).subscribe();
-        // Initial fetch
-        supabase.from('game_state').select('*').single().then(({ data }) => setGameState(old => ({ ...old, ...data })));
+        // Initial fetch & Question sync
+        supabase.from('game_state').select('*').single().then(async ({ data }) => {
+            if (data) {
+                let question = undefined;
+                if (data.current_question_id) {
+                    const { data: q } = await supabase.from('questions').select('*').eq('id', data.current_question_id).single();
+                    if (q) question = q;
+                }
+                setGameState(old => ({ ...old, ...data, question }));
+            }
+        });
         return () => { supabase.removeChannel(channel); };
-    }, [gameState.current_question_id, gameState.question]);
+    }, []);
 
     const handleChoiceSubmit = async (choiceId: string) => {
         if (gameState.phase !== 'ACTIVE' || selectedChoice || !isEligible || !user) return;
