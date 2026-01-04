@@ -467,24 +467,30 @@ export default function AdminPage() {
 
                     {/* Footer Actions */}
                     <div className="mt-4 pt-4 border-t border-gray-800 space-y-2">
-                        <button onClick={() => reviveAllPlayers().then(r => r?.success ? alert('Revived!') : alert('Error'))} className="w-full bg-green-900/50 hover:bg-green-800 text-green-300 p-3 rounded flex items-center justify-center gap-2 border border-green-800 transition-colors">
-                            <Zap className="w-4 h-4" /> REVIVE ALL PLAYERS
+                        <button onClick={() => reviveAllPlayers().then(r => r?.success ? alert('All Players Revived!') : alert('Error'))} className="w-full bg-green-900/50 hover:bg-green-800 text-green-300 p-3 rounded flex items-center justify-center gap-2 border border-green-800 transition-colors">
+                            <Zap className="w-4 h-4" /> REVIVE ALL PLAYERS (Keep Scores)
                         </button>
 
                         <button onClick={async () => {
-                            if (!confirm("Are you sure? This will kick everyone out.")) return;
+                            if (!confirm("RESTART game? (Keeps players, Resets scores & answers)")) return;
                             setLoading(true);
-                            // 1. Clear Answers (FK Constraint)
-                            await supabase.from('answers').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-                            // 2. Delete Profiles
-                            await supabase.from('profiles').delete().neq('id', '0000-0000');
-                            // 3. Reset Game State
-                            await supabase.from('game_state').update({ phase: 'IDLE', current_question_id: null }).eq('id', 1);
+                            await import('@/app/actions/game').then(m => m.adminRestartGame());
+                            setPlayers([]); // Will reload via subscription
+                            setLoading(false);
+                            alert("Game Restarted!");
+                        }} className="w-full bg-yellow-900/40 hover:bg-yellow-800/60 text-yellow-300 p-3 rounded flex items-center justify-center gap-2 border border-yellow-800/50 transition-colors">
+                            <Zap className="w-4 h-4" /> RESTART GAME (Reset Scores)
+                        </button>
 
+                        <button onClick={async () => {
+                            if (!confirm("Warning: KICK ALL PLAYERS? They will need to login again.")) return;
+                            setLoading(true);
+                            const { adminResetGame } = await import('@/app/actions/game');
+                            await adminResetGame();
                             setPlayers([]);
                             setLoading(false);
                         }} className="w-full bg-red-900/30 hover:bg-red-900/50 text-red-400 p-3 rounded flex items-center justify-center gap-2 border border-red-900/50 transition-colors">
-                            <Trash2 className="w-4 h-4" /> RESET / KICK ALL
+                            <Trash2 className="w-4 h-4" /> HARD RESET (LOGOUT ALL)
                         </button>
                     </div>
                 </section>

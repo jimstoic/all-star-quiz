@@ -150,12 +150,32 @@ export async function adminResetGame() {
 
 export async function reviveAllPlayers() {
     try {
-        // Use RPC function to bypass RLS policies reliably
-        const { error } = await supabase.rpc('revive_all');
+        // Direct DB Update (Bypasses RLS if using Service Role client)
+        // Ensure "Admin" user (0000-0000) isn't affected if it exists, though it doesn't matter much.
+        const { error } = await supabase.from('profiles').update({ is_eligible: true }).neq('id', '0000-0000');
         if (error) throw error;
         return { success: true };
     } catch (e: any) {
         console.error("Revive Error:", e);
+        return { success: false, error: e.message };
+    }
+}
+
+// NEW: Soft Reset (Keep players, clear game data)
+export async function adminRestartGame() {
+    try {
+        // 1. Clear Answers
+        await supabase.from('answers').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+        // 2. Reset Profiles (Score 0, Eligible True)
+        await supabase.from('profiles').update({ score: 0, is_eligible: true }).neq('id', '0000-0000');
+
+        // 3. Reset Game State
+        await supabase.from('game_state').update({ phase: 'IDLE', current_question_id: null, start_timestamp: 0 }).eq('id', 1);
+
+        return { success: true };
+    } catch (e: any) {
+        console.error("Restart Error:", e);
         return { success: false, error: e.message };
     }
 }
