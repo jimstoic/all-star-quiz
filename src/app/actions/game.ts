@@ -9,7 +9,9 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 // NEW: Reset answers for a specific question to prevent accumulation
 export async function resetQuestionAnswers(questionId: string) {
     if (!questionId) return;
-    await supabase.from('answers').delete().eq('question_id', questionId);
+    // Use RPC to bypass RLS and ensure all answers are deleted
+    const { error } = await supabase.rpc('reset_question_answers', { target_question_id: questionId });
+    if (error) console.error("Reset Answers Error:", error);
 }
 
 /**
