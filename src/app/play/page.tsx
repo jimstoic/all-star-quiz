@@ -92,17 +92,39 @@ export default function PlayPage() {
 
     // Local State for Result
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+    const [timeOffset, setTimeOffset] = useState(0);
 
-    // Sync Game State (Standard)
+    // Sync Time (Simple NTP-like)
     useEffect(() => {
-        // ... (Existing GameState Sync Logic - keep it!)
+        // Calculate offset: ServerTime - ClientTime
+        // Latency approximation: (RoundTripTime) / 2
+        import('@/app/actions/game').then(mod => {
+            const start = Date.now();
+            mod.getServerTime().then(serverTs => {
+                const end = Date.now();
+                const latency = (end - start) / 2;
+                // Correct Server Time = serverTs + latency
+                // Offset = (serverTs + latency) - end
+                //        = serverTs - start + latency? No.
+                //        = (serverTs + latency) - (start + 2*latency)
+
+                // Simpler: offset = serverTs - (start + latency)
+                const offset = (serverTs + latency) - Date.now();
+                setTimeOffset(offset);
+            });
+        });
+    }, []);
+
+    // ... (Existing GameState Sync Logic - keep it!)
+    useEffect(() => {
+        // ...
+        // (Truncated for brevity, assuming existing logic remains)
         const channel = supabase.channel('game_room')
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'game_state' },
                 async (payload) => {
                     const newState = payload.new as GameState;
 
                     // Reset on NEW Question OR if Phase restarts (INTRO)
-                    // This handles re-asking the same question (ID doesn't change, but phase goes IDLE->INTRO)
                     if (
                         (newState.current_question_id && newState.current_question_id !== gameState.current_question_id) ||
                         newState.phase === 'INTRO'
@@ -162,18 +184,22 @@ export default function PlayPage() {
             supabase.removeChannel(channel);
             supabase.removeChannel(ansChannel);
         };
-    }, [user, gameState.current_question_id]); // added user dep for answer fetch
+    }, [user, gameState.current_question_id]);
 
     const handleChoiceSubmit = async (choiceId: string) => {
         if (gameState.phase !== 'ACTIVE' || selectedChoice || !isEligible || !user) return;
         setSelectedChoice(choiceId);
-        const now = Date.now();
+
+        // Use ADJUSTED Network Time (Fairer than system time, and fairer than arrival time)
+        const adjustedNow = Date.now() + timeOffset;
+        const latencyDiff = adjustedNow - Number(gameState.start_timestamp);
+
         await supabase.from('answers').insert({
             user_id: user.id,
             question_id: gameState.current_question_id,
             answer_value: { choice: choiceId },
-            client_timestamp: now,
-            latency_diff: now - Number(gameState.start_timestamp)
+            client_timestamp: adjustedNow, // Save the sync-adjusted time
+            latency_diff: latencyDiff
         });
     };
 

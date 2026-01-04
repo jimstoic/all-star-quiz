@@ -167,3 +167,7 @@ export async function reviveAllPlayers() {
         return { success: false, error: e.message };
     }
 }
+
+export async function getServerTime() {
+    return Date.now();
+}
